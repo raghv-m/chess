@@ -55,9 +55,8 @@ export class MatchmakingSystem {
 
   private async findMatch(request: MatchRequest): Promise<void> {
     const matches: Array<[string, number]> = [];
-
     // Calculate match scores for all active requests
-    for (const [id, otherRequest] of this.activeRequests.entries()) {
+    for (const [id, otherRequest] of Array.from(this.activeRequests.entries())) {
       if (id === request.user.id) continue;
 
       const score = this.calculateMatchScore(request, otherRequest);

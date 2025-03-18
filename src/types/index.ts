@@ -1,111 +1,18 @@
-// export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king';
-// export type PieceColor = 'white' | 'black';
-// export type LayerIndex = 0 | 1 | 2 | number;
-
-import { GameResult } from "@/types";
-
-// export interface Position {
-//   layer: any;
-//   x: number;
-//   y: number;
-//   z: number;
-// }
-
-// export interface ChessPiece {
-//   type: PieceType;
-//   color: PieceColor;
-//   position: Position;
-//   hasMoved?: boolean;
-//   id: string;
-  
-  
-// }
-
-// export interface Move {
-//   from: Position;
-//   to: Position;
-//   piece: ChessPiece;
-//   capturedPiece?: ChessPiece;
-//   isPromotion?: boolean;
-//   promotedTo?: PieceType;
-//   isCheck?: boolean;
-//   isCheckmate?: boolean;
-//   isCastling?: boolean;
-//   isEnPassant?: boolean;
-//   isLayerMove?: boolean;
-//   captured?: ChessPiece;
-// }
-
-// export interface PiecesCollection {
-
-//   white: ChessPiece[];
-//   black: ChessPiece[];
-//   find: (predicate: (p: ChessPiece) => boolean) => ChessPiece | undefined;
-//   filter: (predicate: (p: ChessPiece) => boolean) => ChessPiece[];
-//   some: (predicate: (p: ChessPiece) => boolean) => boolean;
-//   flatMap: <T>(callback: (p: ChessPiece) => T[]) => T[];
-//   push: (piece: ChessPiece) => void;
-// }
-
-// export interface GameState {
-//   board: (ChessPiece | null)[][][];
-//   currentTurn: PieceColor;
-//   isCheckmate: boolean;
-//   isStalemate: boolean;
-//   isCheck: boolean;
-//   moves: Move[];
-//   lastMove?: Move;
-//   pieces: PiecesCollection;
-//   capturedPieces: {
-//     white: ChessPiece[];
-//     black: ChessPiece[];
-//   };
-// }
-
-// export interface GameSettings {
-//   boardTheme: 'classic' | 'modern' | 'wooden';
-//   pieceStyle: 'classic' | '3d' | 'minimalist';
-//   soundEnabled: boolean;
-//   showHints: boolean;
-//   showCoordinates: boolean;
-//   autoQueen: boolean;
-// }
-
-// export interface ChatMessage {
-//   id: string;
-//   sender: string;
-//   content: string;
-//   timestamp: number;
-//   userId?: string;
-//   username?: string;
-//   message?: string;
-// }
-
-// export interface GameResult {
-//   winner?: PieceColor;
-//   reason: 'checkmate' | 'stalemate' | 'resignation' | 'timeout' | 'draw';
-//   finalPosition: GameState;
-//   moves: Move[];
-//   timestamp: number;
-//   whitePlayer: string;
-//   blackPlayer: string;
-//   timeControl?: string;
-// }
-
-// export type BoardLayer = (ChessPiece | null)[][];
-
-// export interface MultiLayerBoard {
-//   layers: BoardLayer[];
-//   activeLayer: LayerIndex;
-// }
-
+export type LayerIndex = 0 | 1 | 2;
+export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king';
 export type PieceColor = 'white' | 'black';
-export type PieceType = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king';
 
 export interface Position {
+  layer: LayerIndex;
   x: number;
   y: number;
-  layer: number;
+}
+
+export interface ChessPieceInit {
+  type: PieceType;
+  color: PieceColor;
+  position: Position;
+  hasMoved: boolean;
 }
 
 export interface ChessPiece {
@@ -116,15 +23,21 @@ export interface ChessPiece {
   hasMoved: boolean;
 }
 
+export interface Player {
+  id: string;
+  name: string;
+}
+
 export interface Move {
   from: Position;
   to: Position;
   piece: ChessPiece;
-  capturedPiece?: ChessPiece;
-  isCheck?: boolean;
-  isCheckmate?: boolean;
-  isCastling?: boolean;
-  isEnPassant?: boolean;
+  captured?: ChessPiece;
+}
+
+export interface PiecesCollection {
+  white: ChessPiece[];
+  black: ChessPiece[];
 }
 
 export interface GameState {
@@ -133,28 +46,58 @@ export interface GameState {
   isCheck: boolean;
   isCheckmate: boolean;
   isStalemate: boolean;
-  moves: Move[];
-  pieces: ChessPiece[];
   capturedPieces: {
     white: ChessPiece[];
     black: ChessPiece[];
   };
+  moveHistory: Move[];
+  moves: Move[];
+  pieces: {
+    white: ChessPiece[];
+    black: ChessPiece[];
+    find: (predicate: (piece: ChessPiece) => boolean) => ChessPiece | undefined;
+    filter: (predicate: (piece: ChessPiece) => boolean) => ChessPiece[];
+    some: (predicate: (piece: ChessPiece) => boolean) => boolean;
+    flatMap: <T>(callback: (piece: ChessPiece) => T[]) => T[];
+    push: (piece: ChessPiece) => void;
+  };
+}
+
+export interface GameResult {
+  winner: PieceColor | undefined;
+  reason: 'checkmate' | 'stalemate' | 'resignation' | 'timeout';
+}
+
+export interface GameSettings {
+  boardTheme: 'classic' | 'modern' | 'wooden';
+  pieceStyle: 'classic' | '3d' | 'minimalist';
+  soundEnabled: boolean;
+  showHints: boolean;
+  showCoordinates: boolean;
+  autoQueen: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: string;
+  content: string;
+  timestamp: number;
+  userId?: string;
+  username?: string;
+  message?: string;
+}
+
+export type BoardLayer = (ChessPiece | null)[][];
+
+export interface MultiLayerBoard {
+  layers: BoardLayer[];
+  activeLayer: LayerIndex;
 }
 
 export interface User {
   id: string;
   username: string;
   email: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  userId: string;
-  username: string;
-  message: string;
-  timestamp: number;
-  sender: string;
-  content: string;
 }
 
 export interface DatabaseService {
@@ -191,13 +134,12 @@ export interface DatabaseService {
 }
 
 export interface GameOptions {
-  difficulty?: 'beginner' | 'intermediate' | 'expert';
-  roomId?: string;
+  difficulty?: string;
 }
 
 export interface GameCallbacks {
   onMove?: (state: GameState) => void;
-  onGameEnd?: () => void;
+  onGameEnd?: (result: GameResult) => void;
   onError?: (error: Error) => void;
 }
 

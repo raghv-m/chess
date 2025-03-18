@@ -1,4 +1,4 @@
-import { ChessPiece, GameState, Move, Position, PieceColor } from '../chess/engine';
+import { ChessPiece, GameState, Move, Position, PieceColor, LayerIndex } from '@/types/index';
 
 export class GameStateManager {
   private history: GameState[] = [];
@@ -27,15 +27,27 @@ export class GameStateManager {
     const newState = this.getCurrentState();
     
     // Update piece position
-    const piece = newState.pieces.find(p => p.id === move.piece.id);
+    const piece = newState.pieces.find((p: { position: { x: number; y: number; layer: number; }; }) => 
+      p.position.x === move.piece.position.x && 
+      p.position.y === move.piece.position.y && 
+      p.position.layer === move.piece.position.layer
+    );
     if (!piece) return;
 
     // Remove captured piece if any
-    if (move.capturedPiece) {
-      if (move.capturedPiece.color === 'white') {
-        newState.pieces.white = newState.pieces.white.filter(p => p.id !== move.capturedPiece!.id);
+    if (move.captured) {
+      if (move.captured.color === 'white') {
+        newState.pieces.white = newState.pieces.white.filter((p: { position: { x: number; y: number; layer: number; }; }) => 
+          p.position.x !== move.captured!.position.x || 
+          p.position.y !== move.captured!.position.y || 
+          p.position.layer !== move.captured!.position.layer
+        );
       } else {
-        newState.pieces.black = newState.pieces.black.filter(p => p.id !== move.capturedPiece!.id);
+        newState.pieces.black = newState.pieces.black.filter((p: { position: { x: number; y: number; layer: number; }; }) => 
+          p.position.x !== move.captured!.position.x || 
+          p.position.y !== move.captured!.position.y || 
+          p.position.layer !== move.captured!.position.layer
+        );
       }
     }
 
@@ -98,30 +110,55 @@ export class GameStateManager {
   }
 
   private isKingInCheck(state: GameState, color: PieceColor): boolean {
-    const king = state.pieces.find(p => p.type === 'king' && p.color === color);
+    const king = state.pieces.find((p: { type: string; color: string; }) => p.type === 'king' && p.color === color);
     if (!king) return false;
 
     return state.pieces
-      .filter(p => p.color !== color)
-      .some(piece => this.canPieceAttackPosition(state, piece, king.position));
+      .filter((p: { color: string; }) => p.color !== color)
+      .some((piece: ChessPiece) => this.canPieceAttackPosition(state, piece, king.position));
   }
 
   private canPieceAttackPosition(state: GameState, piece: ChessPiece, position: Position): boolean {
     // This would use the move validation logic from the chess engine
-    // For brevity, we'll return false
-    return false;
+    // For now, we'll implement a basic check
+    const moves = this.getValidMovesForPiece(state, piece);
+    return moves.some(move => 
+      move.to.x === position.x && 
+      move.to.y === position.y && 
+      move.to.layer === position.layer
+    );
   }
 
   private getAllPossibleMoves(state: GameState, color: PieceColor): Move[] {
     return state.pieces
-      .filter(p => p.color === color)
-      .flatMap(piece => this.getValidMovesForPiece(state, piece));
+      .filter((p: { color: string; }) => p.color === color)
+      .flatMap((piece: ChessPiece) => this.getValidMovesForPiece(state, piece));
   }
 
   private getValidMovesForPiece(state: GameState, piece: ChessPiece): Move[] {
     // This would use the move generation logic from the chess engine
-    // For brevity, we'll return an empty array
-    return [];
+    // For now, we'll implement a basic version that allows moving to any empty square
+    const moves: Move[] = [];
+    const board = state.board;
+    
+    // Check all possible positions
+    for (let layer = 0; layer < 3; layer++) {
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const targetPiece = board[layer][y][x];
+          if (!targetPiece || targetPiece.color !== piece.color) {
+            moves.push({
+              from: piece.position,
+              to: { x, y, layer: layer as LayerIndex },
+              piece,
+              captured: targetPiece || undefined
+            });
+          }
+        }
+      }
+    }
+    
+    return moves;
   }
 
   public getMoveHistory(): Move[] {

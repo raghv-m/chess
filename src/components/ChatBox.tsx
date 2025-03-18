@@ -8,7 +8,7 @@ interface ChatBoxProps {
   onSendMessage: (message: string) => void;
 }
 
-export function ChatBox({ messages, onSendMessage }: ChatBoxProps) {
+const ChatBox: React.FC<ChatBoxProps> = ({ messages, onSendMessage }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -91,4 +91,6 @@ export function ChatBox({ messages, onSendMessage }: ChatBoxProps) {
       </form>
     </div>
   );
-} 
+};
+
+export default ChatBox; 

@@ -288,7 +288,7 @@ export class ChessAI {
       from,
       to,
       piece: piece!,
-      captured: capturedPiece || undefined
+      capturedPiece: capturedPiece || undefined
     };
   }
 } 

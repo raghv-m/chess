@@ -1,306 +1,266 @@
-import { GameState, Move, Position, ChessPiece, PieceType, PieceColor } from '@/types';
+import { GameState, Move, Position, ChessPiece, PieceColor, LayerIndex, PiecesCollection } from '@/types/index';
+import { v4 as uuidv4 } from 'uuid';
 
-export class GameStateManager {
-  private gameState: GameState;
+class ChessPiecesCollection implements PiecesCollection {
+  white: ChessPiece[] = [];
+  black: ChessPiece[] = [];
 
-  constructor(initialState?: GameState) {
-    this.gameState = initialState || this.createInitialGameState();
+  find(predicate: (piece: ChessPiece) => boolean): ChessPiece | undefined {
+    return [...this.white, ...this.black].find(predicate);
   }
 
-  private createInitialGameState(): GameState {
-    const board = Array(1).fill(null).map(() =>
+  some(predicate: (piece: ChessPiece) => boolean): boolean {
+    return [...this.white, ...this.black].some(predicate);
+  }
+}
+
+export class GameStateManager {
+  private state: GameState;
+
+  constructor() {
+    this.state = this.createInitialState();
+  }
+
+  setState(newState: GameState): void {
+    const pieces = new ChessPiecesCollection();
+    pieces.white = newState.pieces.white;
+    pieces.black = newState.pieces.black;
+    newState.pieces = pieces;
+    this.state = newState;
+  }
+
+  private createInitialState(): GameState {
+    const board = Array(3).fill(null).map(() =>
       Array(8).fill(null).map(() =>
         Array(8).fill(null)
       )
     );
 
-    const pieces = {
-      white: [] as ChessPiece[],
-      black: [] as ChessPiece[],
-      find: (predicate: (piece: ChessPiece) => boolean) => [...board[0].flat()].find(predicate),
-      filter: (predicate: (piece: ChessPiece) => boolean) => [...board[0].flat()].filter(predicate),
-      some: (predicate: (piece: ChessPiece) => boolean) => [...board[0].flat()].some(predicate),
-      flatMap: <T>(callback: (piece: ChessPiece) => T[]) => [...board[0].flat()].flatMap(callback),
-      push: (piece: ChessPiece) => {
-        if (piece.color === 'white') {
-          pieces.white.push(piece);
-        } else {
-          pieces.black.push(piece);
-        }
-        board[0][piece.position.y][piece.position.x] = piece;
-      }
-    };
+    const pieces = new ChessPiecesCollection();
 
     // Initialize pieces
-    const setupPiece = (type: PieceType, color: PieceColor, x: number, y: number) => {
-      const piece: ChessPiece = {
-        type,
-        color,
-        position: { x, y, layer: 0 },
-        hasMoved: false
-      };
-      pieces.push(piece);
+    const setupPieces = (color: PieceColor, baseRank: number) => {
+      const rank = color === 'white' ? baseRank : 7 - baseRank;
+      const layer = 1 as LayerIndex; // Middle layer
+
+      // Pawns
+      for (let file = 0; file < 8; file++) {
+        const pawn: ChessPiece = {
+          id: uuidv4(),
+          type: 'pawn',
+          color,
+          position: { layer, x: file, y: rank },
+          hasMoved: false
+        };
+        pieces[color].push(pawn);
+        board[layer][rank][file] = pawn;
+      }
+
+      // Other pieces
+      const pieceTypes: ChessPiece['type'][] = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+      pieceTypes.forEach((type, file) => {
+        const piece: ChessPiece = {
+          id: uuidv4(),
+          type,
+          color,
+          position: { layer, x: file, y: color === 'white' ? 0 : 7 },
+          hasMoved: false
+        };
+        pieces[color].push(piece);
+        board[layer][color === 'white' ? 0 : 7][file] = piece;
+      });
     };
 
-    // Set up pawns
-    for (let x = 0; x < 8; x++) {
-      setupPiece('pawn', 'white', x, 1);
-      setupPiece('pawn', 'black', x, 6);
-    }
-
-    // Set up other pieces
-    const backRowPieces: PieceType[] = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
-    for (let x = 0; x < 8; x++) {
-      setupPiece(backRowPieces[x], 'white', x, 0);
-      setupPiece(backRowPieces[x], 'black', x, 7);
-    }
+    setupPieces('white', 1);
+    setupPieces('black', 6);
 
     return {
       board,
-      currentTurn: 'white',
-      isCheckmate: false,
-      isStalemate: false,
-      isCheck: false,
-      moves: [],
       pieces,
       capturedPieces: {
         white: [],
         black: []
-      }
+      },
+      currentTurn: 'white',
+      isCheck: false,
+      isCheckmate: false,
+      isStalemate: false
     };
   }
 
   getGameState(): GameState {
-    return this.gameState;
+    const state = JSON.parse(JSON.stringify(this.state)) as GameState;
+    const pieces = new ChessPiecesCollection();
+    pieces.white = state.pieces.white;
+    pieces.black = state.pieces.black;
+    state.pieces = pieces;
+    return state;
   }
 
   makeMove(from: Position, to: Position): boolean {
-    const piece = this.gameState.board[from.layer][from.y][from.x];
-    if (!piece || piece.color !== this.gameState.currentTurn) {
-      return false;
-    }
+    const piece = this.state.board[from.layer][from.y][from.x];
+    if (!piece || piece.color !== this.state.currentTurn) return false;
 
-    const move: Move = {
-      from,
-      to,
-      piece,
-      capturedPiece: this.gameState.board[to.layer][to.y][to.x] || undefined
-    };
+    if (!this.isValidMove(from, to)) return false;
 
+    // Make the move
+    const capturedPiece = this.state.board[to.layer][to.y][to.x];
+    
     // Update board
-    this.gameState.board[from.layer][from.y][from.x] = null;
-    this.gameState.board[to.layer][to.y][to.x] = {
-      ...piece,
-      position: to,
-      hasMoved: true
-    };
+    this.state.board[from.layer][from.y][from.x] = null;
+    piece.position = to;
+    piece.hasMoved = true;
+    this.state.board[to.layer][to.y][to.x] = piece;
 
-    // Handle captured piece
-    if (move.capturedPiece) {
-      this.gameState.capturedPieces[move.capturedPiece.color].push(move.capturedPiece);
+    // Handle capture
+    if (capturedPiece) {
+      const pieces = this.state.pieces[capturedPiece.color];
+      const index = pieces.findIndex(p => p.id === capturedPiece.id);
+      if (index !== -1) {
+        pieces.splice(index, 1);
+        this.state.capturedPieces[capturedPiece.color].push(capturedPiece);
+      }
     }
+
+    // Update turn
+    this.state.currentTurn = this.state.currentTurn === 'white' ? 'black' : 'white';
 
     // Update game state
-    this.gameState.moves.push(move);
-    this.gameState.currentTurn = this.gameState.currentTurn === 'white' ? 'black' : 'white';
-
-    // Check for check/checkmate/stalemate
-    this.updateGameStatus();
+    this.updateGameState();
 
     return true;
   }
 
-  private updateGameStatus() {
-    const currentColor = this.gameState.currentTurn;
-    const king = this.gameState.pieces.find(
-      piece => piece.type === 'king' && piece.color === currentColor
-    );
+  isValidMove(from: Position, to: Position): boolean {
+    const piece = this.state.board[from.layer][from.y][from.x];
+    if (!piece) return false;
 
-    if (!king) {
-      this.gameState.isCheckmate = true;
-      return;
-    }
+    // Basic validation
+    if (from.layer === to.layer && from.x === to.x && from.y === to.y) return false;
+    
+    const targetPiece = this.state.board[to.layer][to.y][to.x];
+    if (targetPiece && targetPiece.color === piece.color) return false;
 
-    // Check if king is in check
-    this.gameState.isCheck = this.isSquareUnderAttack(king.position, currentColor);
-
-    // Check for checkmate or stalemate
-    const hasValidMoves = this.gameState.pieces
-      .filter(piece => piece && piece.color === currentColor)
-      .some(piece => this.getValidMoves(piece.position).length > 0);
-
-    if (!hasValidMoves) {
-      if (this.gameState.isCheck) {
-        this.gameState.isCheckmate = true;
-      } else {
-        this.gameState.isStalemate = true;
-      }
-    }
+    // Check if the move is valid for the piece type
+    return this.isValidMoveForPiece(piece, from, to);
   }
 
-  private isSquareUnderAttack(position: Position, defendingColor: PieceColor): boolean {
-    const attackingColor = defendingColor === 'white' ? 'black' : 'white';
-    return this.gameState.pieces
-      .filter(piece => piece && piece.color === attackingColor)
-      .some(piece => {
-        const moves = this.getValidMoves(piece.position, true);
-        return moves.some(move =>
-          move.x === position.x &&
-          move.y === position.y &&
-          move.layer === position.layer
-        );
-      });
-  }
-
-  getValidMoves(position: Position, ignoreCheck = false): Position[] {
-    const piece = this.gameState.board[position.layer][position.y][position.x];
+  getValidMoves(position: Position, p0: boolean): Position[] {
+    const piece = this.state.board[position.layer][position.y][position.x];
     if (!piece) return [];
 
     const moves: Position[] = [];
-    const addMove = (x: number, y: number, layer = position.layer) => {
-      if (x < 0 || x > 7 || y < 0 || y > 7) return false;
-      
-      const targetPiece = this.gameState.board[layer][y][x];
-      if (targetPiece && targetPiece.color === piece.color) return false;
-
-      if (!ignoreCheck) {
-        // Test if move would put king in check
-        const testState = JSON.parse(JSON.stringify(this.gameState));
-        testState.board[position.layer][position.y][position.x] = null;
-        testState.board[layer][y][x] = { ...piece, position: { x, y, layer } };
-        
-        const king = testState.pieces.find(
-          p => p.type === 'king' && p.color === piece.color
-        );
-        if (king && this.isSquareUnderAttack(king.position, piece.color)) {
-          return false;
-        }
-      }
-
-      moves.push({ x, y, layer });
-      return !targetPiece; // Continue only if square is empty
-    };
-
-    switch (piece.type) {
-      case 'pawn': {
-        const direction = piece.color === 'white' ? 1 : -1;
-        const startRank = piece.color === 'white' ? 1 : 6;
-
-        // Forward move
-        if (addMove(position.x, position.y + direction)) {
-          // Double move from starting position
-          if (position.y === startRank) {
-            addMove(position.x, position.y + 2 * direction);
+    for (let layer = 0; layer < 3; layer++) {
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const to: Position = { layer: layer as LayerIndex, x, y };
+          if (this.isValidMove(position, to)) {
+            moves.push(to);
           }
         }
-
-        // Captures
-        for (const dx of [-1, 1]) {
-          const x = position.x + dx;
-          const y = position.y + direction;
-          if (x >= 0 && x <= 7) {
-            const targetPiece = this.gameState.board[position.layer][y][x];
-            if (targetPiece && targetPiece.color !== piece.color) {
-              addMove(x, y);
-            }
-          }
-        }
-        break;
-      }
-
-      case 'knight': {
-        const moves = [
-          [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-          [1, -2], [1, 2], [2, -1], [2, 1]
-        ];
-        for (const [dx, dy] of moves) {
-          addMove(position.x + dx, position.y + dy);
-        }
-        break;
-      }
-
-      case 'bishop': {
-        const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-        for (const [dx, dy] of directions) {
-          let x = position.x + dx;
-          let y = position.y + dy;
-          while (addMove(x, y)) {
-            x += dx;
-            y += dy;
-          }
-        }
-        break;
-      }
-
-      case 'rook': {
-        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        for (const [dx, dy] of directions) {
-          let x = position.x + dx;
-          let y = position.y + dy;
-          while (addMove(x, y)) {
-            x += dx;
-            y += dy;
-          }
-        }
-        break;
-      }
-
-      case 'queen': {
-        const directions = [
-          [-1, -1], [-1, 0], [-1, 1],
-          [0, -1], [0, 1],
-          [1, -1], [1, 0], [1, 1]
-        ];
-        for (const [dx, dy] of directions) {
-          let x = position.x + dx;
-          let y = position.y + dy;
-          while (addMove(x, y)) {
-            x += dx;
-            y += dy;
-          }
-        }
-        break;
-      }
-
-      case 'king': {
-        const directions = [
-          [-1, -1], [-1, 0], [-1, 1],
-          [0, -1], [0, 1],
-          [1, -1], [1, 0], [1, 1]
-        ];
-        for (const [dx, dy] of directions) {
-          addMove(position.x + dx, position.y + dy);
-        }
-
-        // Castling
-        if (!piece.hasMoved && !this.gameState.isCheck) {
-          // Kingside
-          const kingsideRook = this.gameState.board[position.layer][position.y][7];
-          if (kingsideRook?.type === 'rook' && !kingsideRook.hasMoved) {
-            if (!this.gameState.board[position.layer][position.y][5] &&
-                !this.gameState.board[position.layer][position.y][6] &&
-                !this.isSquareUnderAttack({ x: 5, y: position.y, layer: position.layer }, piece.color) &&
-                !this.isSquareUnderAttack({ x: 6, y: position.y, layer: position.layer }, piece.color)) {
-              addMove(6, position.y);
-            }
-          }
-
-          // Queenside
-          const queensideRook = this.gameState.board[position.layer][position.y][0];
-          if (queensideRook?.type === 'rook' && !queensideRook.hasMoved) {
-            if (!this.gameState.board[position.layer][position.y][1] &&
-                !this.gameState.board[position.layer][position.y][2] &&
-                !this.gameState.board[position.layer][position.y][3] &&
-                !this.isSquareUnderAttack({ x: 2, y: position.y, layer: position.layer }, piece.color) &&
-                !this.isSquareUnderAttack({ x: 3, y: position.y, layer: position.layer }, piece.color)) {
-              addMove(2, position.y);
-            }
-          }
-        }
-        break;
       }
     }
 
     return moves;
+  }
+
+  private isValidMoveForPiece(piece: ChessPiece, from: Position, to: Position): boolean {
+    const dx = Math.abs(to.x - from.x);
+    const dy = Math.abs(to.y - from.y);
+    const dz = Math.abs(to.layer - from.layer);
+
+    switch (piece.type) {
+      case 'pawn':
+        return this.isValidPawnMove(piece, from, to);
+      case 'knight':
+        return (dx === 2 && dy === 1) || (dx === 1 && dy === 2) || 
+               (dx === 2 && dz === 1) || (dx === 1 && dz === 2) ||
+               (dy === 2 && dz === 1) || (dy === 1 && dz === 2);
+      case 'bishop':
+        return dx === dy && this.isPathClear(from, to);
+      case 'rook':
+        return ((dx === 0 && dy > 0) || (dx > 0 && dy === 0)) && this.isPathClear(from, to);
+      case 'queen':
+        return (dx === dy || (dx === 0 && dy > 0) || (dx > 0 && dy === 0)) && this.isPathClear(from, to);
+      case 'king':
+        return dx <= 1 && dy <= 1 && dz <= 1;
+      default:
+        return false;
+    }
+  }
+
+  private isValidPawnMove(piece: ChessPiece, from: Position, to: Position): boolean {
+    const direction = piece.color === 'white' ? 1 : -1;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.layer - from.layer;
+
+    // Normal move
+    if (dx === 0 && dy === direction && dz === 0) {
+      return !this.state.board[to.layer][to.y][to.x];
+    }
+
+    // Initial two-square move
+    if (!piece.hasMoved && dx === 0 && dy === 2 * direction && dz === 0) {
+      const intermediateY = from.y + direction;
+      return !this.state.board[from.layer][intermediateY][from.x] &&
+             !this.state.board[to.layer][to.y][to.x];
+    }
+
+    // Capture
+    if (Math.abs(dx) === 1 && dy === direction) {
+      const targetPiece = this.state.board[to.layer][to.y][to.x];
+      return !!targetPiece && targetPiece.color !== piece.color;
+    }
+
+    return false;
+  }
+
+  private isPathClear(from: Position, to: Position): boolean {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.layer - from.layer;
+    
+    const steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
+    const xStep = dx / steps;
+    const yStep = dy / steps;
+    const zStep = dz / steps;
+
+    for (let i = 1; i < steps; i++) {
+      const x = Math.round(from.x + xStep * i);
+      const y = Math.round(from.y + yStep * i);
+      const layer = Math.round(from.layer + zStep * i) as LayerIndex;
+      
+      if (this.state.board[layer][y][x]) return false;
+    }
+
+    return true;
+  }
+
+  private updateGameState(): void {
+    const currentColor = this.state.currentTurn;
+    const opponentColor = currentColor === 'white' ? 'black' : 'white';
+    
+    // Check if the current player's king is in check
+    const king = this.state.pieces.find(p => p.type === 'king' && p.color === currentColor);
+    if (!king) return;
+
+    // Check if any opponent piece can capture the king
+    this.state.isCheck = this.state.pieces.some(piece => 
+      piece.color === opponentColor && this.isValidMove(piece.position, king.position)
+    );
+
+    // Check if the current player has any valid moves
+    const hasValidMoves = this.state.pieces.some(piece => 
+      piece.color === currentColor && this.getValidMoves(piece.position).length > 0
+    );
+
+    if (!hasValidMoves) {
+      this.state.isCheckmate = this.state.isCheck;
+      this.state.isStalemate = !this.state.isCheck;
+    } else {
+      this.state.isCheckmate = false;
+      this.state.isStalemate = false;
+    }
   }
 } 
