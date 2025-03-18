@@ -1,5 +1,4 @@
-import { ChessPiece, Position, PieceType, PieceColor, Move, GameState, LayerIndex, BoardLayer } from '@/types';
-
+import { ChessPiece, Position, PieceType, PieceColor, Move, GameState, LayerIndex, BoardLayer, PiecesCollection } from '@/types';
 
 export class ChessEngine {
   private state: GameState;
@@ -32,6 +31,22 @@ export class ChessEngine {
     const blackPieces: ChessPiece[] = [];
     const allPieces = () => [...whitePieces, ...blackPieces];
 
+    const piecesCollection: PiecesCollection = {
+      white: whitePieces,
+      black: blackPieces,
+      find: (predicate: (p: ChessPiece) => boolean) => allPieces().find(predicate),
+      filter: (predicate: (p: ChessPiece) => boolean) => allPieces().filter(predicate),
+      some: (predicate: (p: ChessPiece) => boolean) => allPieces().some(predicate),
+      flatMap: <T>(callback: (p: ChessPiece) => T[]) => allPieces().flatMap(callback),
+      push: (piece: ChessPiece) => {
+        if (piece.color === 'white') {
+          whitePieces.push(piece);
+        } else {
+          blackPieces.push(piece);
+        }
+      }
+    };
+
     return {
       board,
       currentTurn: 'white',
@@ -39,14 +54,7 @@ export class ChessEngine {
       isStalemate: false,
       isCheck: false,
       moves: [],
-      pieces: {
-        white: whitePieces,
-        black: blackPieces,
-        find: (predicate: (p: ChessPiece) => boolean) => allPieces().find(predicate),
-        filter: (predicate: (p: ChessPiece) => boolean) => allPieces().filter(predicate),
-        some: (predicate: (p: ChessPiece) => boolean) => allPieces().some(predicate),
-        flatMap: <T>(callback: (p: ChessPiece) => T[]) => allPieces().flatMap(callback)
-      },
+      pieces: piecesCollection, // Assign the PiecesCollection object here
       capturedPieces: {
         white: [],
         black: []
@@ -60,14 +68,20 @@ export class ChessEngine {
       layer[1][i] = {
         type: 'pawn',
         color: 'white',
-        position: { x: i, y: 1, layer: 0 },
+        position: {
+          x: i, y: 1, layer: 0,
+          z: 0
+        },
         hasMoved: false,
         id: `pawn-white-0-${i}`
       };
       layer[6][i] = {
         type: 'pawn',
         color: 'black',
-        position: { x: i, y: 6, layer: 0 },
+        position: {
+          x: i, y: 6, layer: 0,
+          z: 0
+        },
         hasMoved: false,
         id: `pawn-black-0-${i}`
       };
@@ -82,14 +96,20 @@ export class ChessEngine {
       layer[0][i] = {
         type: backRowPieces[i],
         color: 'white',
-        position: { x: i, y: 0, layer: 0 },
+        position: {
+          x: i, y: 0, layer: 0,
+          z: 0
+        },
         hasMoved: false,
         id: `${backRowPieces[i]}-white-0-${i}`
       };
       layer[7][i] = {
         type: backRowPieces[i],
         color: 'black',
-        position: { x: i, y: 7, layer: 0 },
+        position: {
+          x: i, y: 7, layer: 0,
+          z: 0
+        },
         hasMoved: false,
         id: `${backRowPieces[i]}-black-0-${i}`
       };
@@ -101,28 +121,40 @@ export class ChessEngine {
     layer[3][2] = {
       type: 'knight',
       color: 'white',
-      position: { x: 2, y: 3, layer: 1 },
+      position: {
+        x: 2, y: 3, layer: 1,
+        z: 0
+      },
       hasMoved: false,
       id: 'knight-white-1-2'
     };
     layer[3][5] = {
       type: 'bishop',
       color: 'white',
-      position: { x: 5, y: 3, layer: 1 },
+      position: {
+        x: 5, y: 3, layer: 1,
+        z: 0
+      },
       hasMoved: false,
       id: 'bishop-white-1-5'
     };
     layer[4][2] = {
       type: 'knight',
       color: 'black',
-      position: { x: 2, y: 4, layer: 1 },
+      position: {
+        x: 2, y: 4, layer: 1,
+        z: 0
+      },
       hasMoved: false,
       id: 'knight-black-1-2'
     };
     layer[4][5] = {
       type: 'bishop',
       color: 'black',
-      position: { x: 5, y: 4, layer: 1 },
+      position: {
+        x: 5, y: 4, layer: 1,
+        z: 0
+      },
       hasMoved: false,
       id: 'bishop-black-1-5'
     };
@@ -139,44 +171,13 @@ export class ChessEngine {
 
   private initializeBoard(): void {
     // Initialize pieces on the bottom layer (0)
-    this.initializeLayer(0);
+    this.initializeBottomLayer(this.board[0]);
     
     // Initialize special pieces on middle layer (1)
     this.initializeMiddleLayer(this.board[1]);
     
     // Initialize pieces on top layer (2)
-    this.initializeLayer(2);
-  }
-
-  private initializeLayer(layer: number): void {
-    if (layer !== 0 && layer !== 1 && layer !== 2) {
-      throw new Error('Invalid layer index');
-    }
-    const layerIndex = layer as LayerIndex;
-    const backRankPieces: PieceType[] = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
-    const colors: [PieceColor, PieceColor] = layerIndex === 2 ? ['black', 'black'] : ['white', 'white'];
-
-    // Initialize back rank
-    backRankPieces.forEach((type, x) => {
-      this.addPiece({
-        id: `${type}-${colors[0]}-${layerIndex}-${x}`,
-        type,
-        color: colors[0],
-        position: { x, y: layerIndex === 2 ? 7 : 0, layer: layerIndex },
-        hasMoved: false
-      });
-    });
-
-    // Initialize pawns
-    for (let x = 0; x < 8; x++) {
-      this.addPiece({
-        id: `pawn-${colors[1]}-${layerIndex}-${x}`,
-        type: 'pawn',
-        color: colors[1],
-        position: { x, y: layerIndex === 2 ? 6 : 1, layer: layerIndex },
-        hasMoved: false
-      });
-    }
+    this.initializeTopLayer(this.board[2]);
   }
 
   private addPiece(piece: ChessPiece): void {
@@ -214,7 +215,6 @@ export class ChessEngine {
     return moves.filter(move => !this.wouldBeInCheck(piece, move));
   }
 
-  // Make this public so it can be used by GameModeManager
   public getPieceAt(position: Position): ChessPiece | null {
     if (!this.isValidPosition(position)) return null;
     return this.board[position.layer][position.y][position.x];
@@ -229,7 +229,8 @@ export class ChessEngine {
     const forward: Position = {
       x: piece.position.x,
       y: piece.position.y + direction,
-      layer: piece.position.layer
+      layer: piece.position.layer,
+      z: 0
     };
 
     if (this.isValidPosition(forward) && !this.getPieceAt(forward)) {
@@ -240,7 +241,8 @@ export class ChessEngine {
         const doubleForward: Position = {
           x: piece.position.x,
           y: piece.position.y + (direction * 2),
-          layer: piece.position.layer
+          layer: piece.position.layer,
+          z: 0
         };
         if (!this.getPieceAt(doubleForward)) {
           moves.push(doubleForward);
@@ -256,7 +258,10 @@ export class ChessEngine {
 
     captureMoves.forEach(move => {
       // Same layer captures
-      const sameLayerCapture: Position = { ...move, layer: piece.position.layer };
+      const sameLayerCapture: Position = {
+        ...move, layer: piece.position.layer,
+        z: 0
+      };
       if (this.isValidPosition(sameLayerCapture)) {
         const targetPiece = this.getPieceAt(sameLayerCapture);
         if (targetPiece && targetPiece.color !== piece.color) {
@@ -267,7 +272,10 @@ export class ChessEngine {
       // Layer transitions (if applicable)
       const adjacentLayers = this.getAdjacentLayers(piece.position.layer);
       adjacentLayers.forEach(layer => {
-        const layerCapture: Position = { ...move, layer };
+        const layerCapture: Position = {
+          ...move, layer,
+          z: 0
+        };
         if (this.isValidPosition(layerCapture)) {
           const targetPiece = this.getPieceAt(layerCapture);
           if (targetPiece && targetPiece.color !== piece.color) {
@@ -292,7 +300,8 @@ export class ChessEngine {
         const pos: Position = {
           x,
           y,
-          layer: piece.position.layer as LayerIndex
+          layer: piece.position.layer as LayerIndex,
+          z: 0
         };
         const targetPiece = this.getPieceAt(pos);
 
@@ -315,7 +324,8 @@ export class ChessEngine {
       const layerMove: Position = {
         x: piece.position.x,
         y: piece.position.y,
-        layer
+        layer,
+        z: 0
       };
       if (!this.getPieceAt(layerMove)) {
         moves.push(layerMove);
@@ -336,7 +346,8 @@ export class ChessEngine {
       const pos: Position = {
         x: piece.position.x + dx,
         y: piece.position.y + dy,
-        layer: piece.position.layer
+        layer: piece.position.layer,
+        z: 0
       };
 
       if (this.isValidPosition(pos)) {
@@ -354,7 +365,8 @@ export class ChessEngine {
         const layerMove: Position = {
           x: piece.position.x,
           y: piece.position.y,
-          layer
+          layer,
+          z: 0
         };
         if (!this.getPieceAt(layerMove)) {
           moves.push(layerMove);
@@ -377,7 +389,8 @@ export class ChessEngine {
         const pos: Position = {
           x,
           y,
-          layer: piece.position.layer as LayerIndex
+          layer: piece.position.layer as LayerIndex,
+          z: 0
         };
         const targetPiece = this.getPieceAt(pos);
 
@@ -417,7 +430,8 @@ export class ChessEngine {
       const pos: Position = {
         x: piece.position.x + dx,
         y: piece.position.y + dy,
-        layer: piece.position.layer
+        layer: piece.position.layer,
+        z: 0
       };
 
       if (this.isValidPosition(pos)) {
@@ -436,7 +450,8 @@ export class ChessEngine {
       const layerMove: Position = {
         x: piece.position.x,
         y: piece.position.y,
-        layer
+        layer,
+        z: 0
       };
       if (!this.getPieceAt(layerMove) && !this.wouldBeInCheck(piece, layerMove)) {
         moves.push(layerMove);
@@ -571,4 +586,4 @@ export class ChessEngine {
   public getBoard(): BoardLayer[] {
     return this.board;
   }
-} 
+}

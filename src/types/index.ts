@@ -3,6 +3,7 @@ export type PieceColor = 'white' | 'black';
 export type LayerIndex = 0 | 1 | 2 | number;
 
 export interface Position {
+  layer: any;
   x: number;
   y: number;
   z: number;
@@ -14,6 +15,8 @@ export interface ChessPiece {
   position: Position;
   hasMoved?: boolean;
   id: string;
+  
+  
 }
 
 export interface Move {
@@ -72,6 +75,7 @@ export interface ChatMessage {
   timestamp: number;
   userId?: string;
   username?: string;
+  message?: string;
 }
 
 export interface GameResult {

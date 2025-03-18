@@ -138,7 +138,9 @@ export class MultiplayerGameManager {
       userId: this.currentUser.id,
       username: this.currentUser.username,
       message,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      sender: '',
+      content: ''
     };
 
     this.socket.emit('chat', {

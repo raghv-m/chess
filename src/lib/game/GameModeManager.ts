@@ -4,6 +4,7 @@ import { ChessAI } from '../ai/ChessAI';
 import { Move, GameState, Position, ChatMessage, ChessPiece, PieceColor, PieceType } from '@/types';
 import { User } from '../auth/types';
 import { InMemoryDatabaseService } from '../auth/DatabaseService';
+import { Layers } from 'three';
 
 type GameMode = 'local' | 'ai' | 'multiplayer';
 
@@ -161,7 +162,10 @@ export class GameModeManager {
       for (let i = 1; i < steps; i++) {
         const x = from.x + stepX * i;
         const y = from.y + stepY * i;
-        if (this.getPieceAt({ x, y, z: from.z })) return false;
+        if (this.getPieceAt({
+          x, y, z: from.z,
+          layer: undefined
+        })) return false;
       }
       return true;
     };
@@ -224,7 +228,10 @@ export class GameModeManager {
         // Castling
         if (!piece.hasMoved && dy === 0 && absDx === 2) {
           const rookX = dx > 0 ? 7 : 0;
-          const rook = this.getPieceAt({ x: rookX, y: from.y, z: from.z });
+          const rook = this.getPieceAt({
+            x: rookX, y: from.y, z: from.z,
+            layer: undefined
+          });
           if (!rook || rook.type !== 'rook' || rook.hasMoved) return false;
 
           // Check if path is clear
@@ -243,9 +250,12 @@ export class GameModeManager {
     let kingPos: Position | null = null;
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
-        const piece = this.getPieceAt({ x, y, z: 0 });
+        const piece = this.getPieceAt({
+          x, y, z: 0,
+          layer: undefined
+        });
         if (piece?.type === 'king' && piece.color === color) {
-          kingPos = { x, y, z: 0 };
+          kingPos = { x, y, z: 0, layer:0 };
           break;
         }
       }
@@ -258,9 +268,15 @@ export class GameModeManager {
     const opponentColor = color === 'white' ? 'black' : 'white';
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
-        const piece = this.getPieceAt({ x, y, z: 0 });
+        const piece = this.getPieceAt({
+          x, y, z: 0,
+          layer: undefined
+        });
         if (piece?.color === opponentColor) {
-          if (this.isValidMove({ x, y, z: 0 }, kingPos)) {
+          if (this.isValidMove({
+            x, y, z: 0,
+            layer: undefined
+          }, kingPos)) {
             return true;
           }
         }
@@ -282,14 +298,29 @@ export class GameModeManager {
     // Find all pieces that can move
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
-        const piece = this.getPieceAt({ x, y, z: 0 });
+        const piece = this.getPieceAt({
+          x, y, z: 0,
+          layer: undefined
+        });
         if (piece && piece.color === 'black') {
           // Find all valid moves for this piece
           for (let ty = 0; ty < 8; ty++) {
             for (let tx = 0; tx < 8; tx++) {
-              if (this.isValidMove({ x, y, z: 0 }, { x: tx, y: ty, z: 0 })) {
-                pieces.push({ x, y, z: 0 });
-                moves.push({ x: tx, y: ty, z: 0 });
+              if (this.isValidMove({
+                x, y, z: 0,
+                layer: undefined
+              }, {
+                x: tx, y: ty, z: 0,
+                layer: undefined
+              })) {
+                pieces.push({
+                  x, y, z: 0,
+                  layer: undefined
+                });
+                moves.push({
+                  x: tx, y: ty, z: 0,
+                  layer: undefined
+                });
               }
             }
           }
@@ -328,12 +359,18 @@ export class GameModeManager {
     if (move.isCastling) {
       const rookX = to.x > from.x ? 7 : 0;
       const newRookX = to.x > from.x ? to.x - 1 : to.x + 1;
-      const rook = this.getPieceAt({ x: rookX, y: from.y, z: from.z });
+      const rook = this.getPieceAt({
+        x: rookX, y: from.y, z: from.z,
+        layer: undefined
+      });
       if (rook) {
         this.gameState.board[from.z][from.y][rookX] = null as unknown as ChessPiece;
         this.gameState.board[from.z][from.y][newRookX] = {
           ...rook,
-          position: { x: newRookX, y: from.y, z: from.z },
+          position: {
+            x: newRookX, y: from.y, z: from.z,
+            layer: undefined
+          },
           hasMoved: true
         };
       }
@@ -394,7 +431,8 @@ export class GameModeManager {
         username: 'AI',
         message: this.getAIResponse(message),
         timestamp: Date.now(),
-        isAI: true
+        sender: '',
+        content: ''
       };
       this.callbacks.onChatMessage?.(aiResponse);
     } else if (this.ws) {
@@ -504,7 +542,10 @@ export class GameModeManager {
     return {
       type,
       color,
-      position: { x, y, z: 0 },
+      position: {
+        x, y, z: 0,
+        layer: undefined
+      },
       hasMoved: false,
       id: `${color}-${type}-${x}-${y}`
     };
@@ -532,20 +573,32 @@ export class GameModeManager {
         const startRank = piece.color === 'white' ? 1 : 6;
 
         // Forward move
-        if (this.isValidPosition({ x, y: y + direction, z })) {
-          moves.push({ x, y: y + direction, z });
+        if (this.isValidPosition({
+          x, y: y + direction, z,
+          layer: undefined
+        })) {
+          moves.push({
+            x, y: y + direction, z,
+            layer: undefined
+          });
         }
 
         // Initial two-square move
-        if (y === startRank && this.isValidPosition({ x, y: y + 2 * direction, z })) {
-          moves.push({ x, y: y + 2 * direction, z });
+        if (y === startRank && this.isValidPosition({
+          x, y: y + 2 * direction, z,
+          layer: undefined
+        })) {
+          moves.push({
+            x, y: y + 2 * direction, z,
+            layer: undefined
+          });
         }
 
         // Diagonal captures
         [-1, 1].forEach(dx => {
           const newPos = { x: x + dx, y: y + direction, z };
           if (this.isValidPosition(newPos)) {
-            moves.push(newPos);
+            moves.push();
           }
         });
         break;
