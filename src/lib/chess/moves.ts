@@ -1,4 +1,4 @@
-import { Position, ChessPiece, Move, GameState } from '@/types';
+import { Position, ChessPiece, Move, GameState } from '../chess/engine';
 
 export class MoveValidator {
   constructor(private gameState: GameState) {}
@@ -22,7 +22,7 @@ export class MoveValidator {
   }
 
   private getPieceAtPosition(pos: Position): ChessPiece | null {
-    return this.gameState.pieces.find(p => 
+    return this.gameState.pieces.find((p: ChessPiece) => 
       p.position.x === pos.x && 
       p.position.y === pos.y && 
       p.position.layer === pos.layer
@@ -61,18 +61,22 @@ export class MoveValidator {
   }
 
   private applyMoveToTempState(state: GameState, piece: ChessPiece, targetPos: Position): void {
-    const tempPiece = state.pieces.find(p => p.id === piece.id);
+    const tempPiece = state.pieces.find((p: ChessPiece) => p.id === piece.id);
     if (!tempPiece) return;
 
     // Remove any captured piece
-    const capturedPieceIndex = state.pieces.findIndex(p => 
+    const capturedPiece = state.pieces.find((p: ChessPiece) => 
       p.position.x === targetPos.x && 
       p.position.y === targetPos.y && 
       p.position.layer === targetPos.layer
     );
 
-    if (capturedPieceIndex !== -1) {
-      state.pieces.splice(capturedPieceIndex, 1);
+    if (capturedPiece) {
+      if (capturedPiece.color === 'white') {
+        state.pieces.white = state.pieces.white.filter((p: ChessPiece) => p.id !== capturedPiece.id);
+      } else {
+        state.pieces.black = state.pieces.black.filter((p: ChessPiece) => p.id !== capturedPiece.id);
+      }
     }
 
     // Update piece position
@@ -81,13 +85,13 @@ export class MoveValidator {
 
   private isKingInCheck(state: GameState, color: string): boolean {
     // Find the king
-    const king = state.pieces.find(p => p.type === 'king' && p.color === color);
+    const king = state.pieces.find((p: ChessPiece) => p.type === 'king' && p.color === color);
     if (!king) return false;
 
     // Check if any opponent piece can capture the king
     return state.pieces
-      .filter(p => p.color !== color)
-      .some(piece => {
+      .filter((p: ChessPiece) => p.color !== color)
+      .some((piece: ChessPiece) => {
         const moves = this.getBasicMoves(piece);
         return moves.some(move => 
           move.x === king.position.x && 

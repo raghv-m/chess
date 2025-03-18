@@ -1,611 +1,442 @@
-import { ChessEngine } from '../chess/engine';
-import { MultiplayerGameManager } from '../multiplayer/GameManager';
-import { ChessAI } from '../ai/ChessAI';
-import { Move, GameState, Position, ChatMessage, ChessPiece, PieceColor, PieceType } from '@/types';
-import { User } from '../auth/types';
-import { InMemoryDatabaseService } from '../auth/DatabaseService';
-import { Layers } from 'three';
-
-type GameMode = 'local' | 'ai' | 'multiplayer';
-
-interface GameModeOptions {
-  difficulty?: 'beginner' | 'intermediate' | 'expert';
-  serverUrl?: string;
-  user?: User;
-}
-
-interface GameCallbacks {
-  onGameStart?: (opponent: User) => void;
-  onMove?: (move: Move) => void;
-  onGameEnd?: (result: { winner?: User; reason: string }) => void;
-  onError?: (error: string) => void;
-  onChatMessage?: (message: ChatMessage) => void;
-}
+import { GameState, Move, Position, ChessPiece, PieceType, PieceColor, GameOptions, GameCallbacks, PieceEvaluation, PositionEvaluation } from '@/types';
+import { GameStateManager } from './GameStateManager';
+import { socketClient } from '../socket';
 
 export class GameModeManager {
-  private readonly NUM_LAYERS = 1;
-  private readonly BOARD_SIZE = 8;
-  private gameState: GameState;
-  private engine: ChessEngine;
-  private multiplayerManager?: MultiplayerGameManager;
-  private ai?: ChessAI;
-  private gameMode: GameMode = 'local';
-  private currentUser?: User;
+  private gameState: GameStateManager;
+  private mode: 'local' | 'ai' | 'multiplayer' = 'local';
+  private difficulty: 'beginner' | 'intermediate' | 'expert' = 'beginner';
   private callbacks: GameCallbacks = {};
-  private isHandlingOpponentMove: boolean = false;
-  private playerColor?: PieceColor;
-  private aiDifficulty?: 'beginner' | 'intermediate' | 'expert';
-  private currentPlayer: PieceColor = 'white';
-  private ws?: WebSocket;
-  private db: InMemoryDatabaseService;
+  private roomId?: string;
 
   constructor() {
-    this.engine = new ChessEngine();
-    this.gameState = this.createInitialState();
-    this.db = new InMemoryDatabaseService();
+    this.gameState = new GameStateManager();
   }
 
-  private createInitialState(): GameState {
-    const board = Array(this.NUM_LAYERS).fill(null).map(() => 
-      Array(this.BOARD_SIZE).fill(null).map(() => 
-        Array(this.BOARD_SIZE).fill(null)
-      )
-    );
+  async initializeGameMode(mode: 'local' | 'ai' | 'multiplayer', options?: GameOptions) {
+    this.mode = mode;
+    this.difficulty = options?.difficulty || 'beginner';
 
-    const whitePieces: ChessPiece[] = [];
-    const blackPieces: ChessPiece[] = [];
-    const allPieces = () => [...whitePieces, ...blackPieces];
-
-    return {
-      board,
-      currentTurn: 'white',
-      isCheckmate: false,
-      isStalemate: false,
-      isCheck: false,
-      moves: [],
-      pieces: {
-        white: whitePieces,
-        black: blackPieces,
-        find: (predicate: (p: ChessPiece) => boolean) => allPieces().find(predicate),
-        filter: (predicate: (p: ChessPiece) => boolean) => allPieces().filter(predicate),
-        some: (predicate: (p: ChessPiece) => boolean) => allPieces().some(predicate),
-        flatMap: <T>(callback: (p: ChessPiece) => T[]) => allPieces().flatMap(callback),
-        push: (piece: ChessPiece) => {
-          if (piece.color === 'white') {
-            whitePieces.push(piece);
-          } else {
-            blackPieces.push(piece);
-          }
-        }
-      },
-      capturedPieces: {
-        white: [],
-        black: []
-      }
-    };
-  }
-
-  public initializeGameMode(mode: GameMode, options: GameModeOptions = {}): void {
-    this.gameMode = mode;
-    this.currentUser = options.user;
-
-    switch (mode) {
-      case 'local':
-        this.playerColor = 'white';
-        break;
-      case 'ai':
-        this.playerColor = 'white';
-        this.aiDifficulty = options.difficulty || 'beginner';
-        this.ai = new ChessAI(this.aiDifficulty);
-        break;
-      case 'multiplayer':
-        if (!options.user || !options.serverUrl) {
-          throw new Error('User and server URL are required for multiplayer mode');
-        }
-        this.multiplayerManager = new MultiplayerGameManager(
-          options.user,
-          options.serverUrl,
-          this.db
-        );
-        this.setupMultiplayerCallbacks();
-        break;
-    }
-
-    this.gameState = this.createInitialState();
-  }
-
-  private setupMultiplayerCallbacks(): void {
-    if (!this.multiplayerManager) return;
-
-    this.multiplayerManager.setCallbacks({
-      onGameStart: (opponent, color) => {
-        this.callbacks.onGameStart?.(opponent);
-        this.playerColor = color;
-      },
-      onMove: (move) => {
-        if (!this.isHandlingOpponentMove) {
-          this.isHandlingOpponentMove = true;
-          this.engine.makeMove(move.from, move.to);
-          this.callbacks.onMove?.(move);
-          this.isHandlingOpponentMove = false;
-        }
-      },
-      onGameEnd: (result) => {
-        this.callbacks.onGameEnd?.(result);
-      },
-      onError: (error) => {
-        this.callbacks.onError?.(error);
-      },
-      onChatMessage: (message) => {
-        this.callbacks.onChatMessage?.(message);
-      }
-    });
-  }
-
-  private isValidMove(from: Position, to: Position): boolean {
-    const piece = this.getPieceAt(from);
-    if (!piece || piece.color !== this.currentPlayer) return false;
-
-    // Check if move is within board bounds
-    if (to.x < 0 || to.x > 7 || to.y < 0 || to.y > 7) return false;
-
-    // Check if destination has a piece of the same color
-    const targetPiece = this.getPieceAt(to);
-    if (targetPiece && targetPiece.color === piece.color) return false;
-
-    // Path checking helper
-    const isPathClear = (dx: number, dy: number): boolean => {
-      const steps = Math.max(Math.abs(dx), Math.abs(dy));
-      const stepX = dx === 0 ? 0 : dx / Math.abs(dx);
-      const stepY = dy === 0 ? 0 : dy / Math.abs(dy);
-
-      for (let i = 1; i < steps; i++) {
-        const x = from.x + stepX * i;
-        const y = from.y + stepY * i;
-        if (this.getPieceAt({
-          x, y, z: from.z,
-          layer: undefined
-        })) return false;
-      }
-      return true;
-    };
-
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-
-    switch (piece.type) {
-      case 'pawn': {
-        const direction = piece.color === 'white' ? -1 : 1;
-        const startRank = piece.color === 'white' ? 6 : 1;
-        
-        // Basic forward move
-        if (dx === 0 && dy === direction && !targetPiece) {
-          return true;
-        }
-        
-        // Initial two-square move
-        if (dx === 0 && from.y === startRank && dy === 2 * direction) {
-          return !targetPiece && isPathClear(0, direction * 2);
-        }
-        
-        // Capture moves
-        if (absDx === 1 && dy === direction) {
-          // Regular capture
-          if (targetPiece && targetPiece.color !== piece.color) {
-            return true;
-          }
-          
-          // En passant
-          const lastMove = this.gameState.lastMove;
-          if (lastMove && lastMove.piece.type === 'pawn' &&
-              Math.abs(lastMove.to.y - lastMove.from.y) === 2 &&
-              lastMove.to.x === to.x &&
-              lastMove.to.y === from.y) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      case 'knight':
-        return (absDx === 2 && absDy === 1) || (absDx === 1 && absDy === 2);
-
-      case 'bishop':
-        return absDx === absDy && isPathClear(dx, dy);
-
-      case 'rook':
-        return (dx === 0 || dy === 0) && isPathClear(dx, dy);
-
-      case 'queen':
-        return (dx === 0 || dy === 0 || absDx === absDy) && isPathClear(dx, dy);
-
-      case 'king': {
-        // Normal moves
-        if (absDx <= 1 && absDy <= 1) return true;
-
-        // Castling
-        if (!piece.hasMoved && dy === 0 && absDx === 2) {
-          const rookX = dx > 0 ? 7 : 0;
-          const rook = this.getPieceAt({
-            x: rookX, y: from.y, z: from.z,
-            layer: undefined
-          });
-          if (!rook || rook.type !== 'rook' || rook.hasMoved) return false;
-
-          // Check if path is clear
-          return isPathClear(dx, 0) && !this.isKingInCheck(piece.color);
-        }
-        return false;
-      }
-
-      default:
-        return false;
-    }
-  }
-
-  private isKingInCheck(color: PieceColor): boolean {
-    // Find king position
-    let kingPos: Position | null = null;
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        const piece = this.getPieceAt({
-          x, y, z: 0,
-          layer: undefined
-        });
-        if (piece?.type === 'king' && piece.color === color) {
-          kingPos = { x, y, z: 0, layer:0 };
-          break;
-        }
-      }
-      if (kingPos) break;
-    }
-
-    if (!kingPos) return false;
-
-    // Check if any opponent piece can capture the king
-    const opponentColor = color === 'white' ? 'black' : 'white';
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        const piece = this.getPieceAt({
-          x, y, z: 0,
-          layer: undefined
-        });
-        if (piece?.color === opponentColor) {
-          if (this.isValidMove({
-            x, y, z: 0,
-            layer: undefined
-          }, kingPos)) {
-            return true;
-          }
-        }
-      }
-    }
-
-    return false;
-  }
-
-  private getPieceAt(pos: Position): ChessPiece | null {
-    return this.gameState.board[pos.z][pos.y][pos.x];
-  }
-
-  private makeAIMove() {
-    // Simple AI that makes random valid moves
-    const pieces: Position[] = [];
-    const moves: Position[] = [];
-
-    // Find all pieces that can move
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        const piece = this.getPieceAt({
-          x, y, z: 0,
-          layer: undefined
-        });
-        if (piece && piece.color === 'black') {
-          // Find all valid moves for this piece
-          for (let ty = 0; ty < 8; ty++) {
-            for (let tx = 0; tx < 8; tx++) {
-              if (this.isValidMove({
-                x, y, z: 0,
-                layer: undefined
-              }, {
-                x: tx, y: ty, z: 0,
-                layer: undefined
-              })) {
-                pieces.push({
-                  x, y, z: 0,
-                  layer: undefined
-                });
-                moves.push({
-                  x: tx, y: ty, z: 0,
-                  layer: undefined
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Make a random move
-    if (pieces.length > 0) {
-      const index = Math.floor(Math.random() * pieces.length);
-      this.makeMove(pieces[index], moves[index]);
-    }
-  }
-
-  public async makeMove(from: Position, to: Position): Promise<boolean> {
-    if (this.isHandlingOpponentMove) return false;
-
-    if (!this.isValidMove(from, to)) return false;
-
-    const piece = this.getPieceAt(from);
-    if (!piece) return false;
-
-    const capturedPiece = this.getPieceAt(to);
-    const move: Move = {
-      from,
-      to,
-      piece,
-      captured: capturedPiece || undefined,
-      isCheck: false,
-      isCheckmate: false,
-      isCastling: piece.type === 'king' && Math.abs(to.x - from.x) === 2,
-      isEnPassant: piece.type === 'pawn' && Math.abs(from.x - to.x) === 1 && !capturedPiece
-    };
-
-    // Handle special moves
-    if (move.isCastling) {
-      const rookX = to.x > from.x ? 7 : 0;
-      const newRookX = to.x > from.x ? to.x - 1 : to.x + 1;
-      const rook = this.getPieceAt({
-        x: rookX, y: from.y, z: from.z,
-        layer: undefined
-      });
-      if (rook) {
-        this.gameState.board[from.z][from.y][rookX] = null as unknown as ChessPiece;
-        this.gameState.board[from.z][from.y][newRookX] = {
-          ...rook,
-          position: {
-            x: newRookX, y: from.y, z: from.z,
-            layer: undefined
-          },
-          hasMoved: true
-        };
-      }
-    }
-
-    // Make the move
-    this.gameState.board[from.z][from.y][from.x] = null as unknown as ChessPiece;
-    this.gameState.board[to.z][to.y][to.x] = {
-      ...piece,
-      position: to,
-      hasMoved: true
-    };
-
-    // Update game state
-    this.gameState.lastMove = move;
-    this.gameState.currentTurn = this.gameState.currentTurn === 'white' ? 'black' : 'white';
-    this.gameState.moves.push(move);
-
-    // Check for check/checkmate
-    const opponentColor = piece.color === 'white' ? 'black' : 'white';
-    this.gameState.isCheck = this.isKingInCheck(opponentColor);
-    move.isCheck = this.gameState.isCheck;
-
-    // Handle move based on game mode
-    switch (this.gameMode) {
-      case 'multiplayer':
-        if (this.multiplayerManager) {
-          return this.multiplayerManager.makeMove(from, to);
-        }
-        break;
-
-      case 'ai':
-        if (this.ai) {
-          this.callbacks.onMove?.(move);
-          const aiMove = await this.ai.getNextMove(this.gameState);
-          if (aiMove) {
-            return this.makeMove(aiMove.from, aiMove.to);
-          }
-        }
-        break;
-
-      case 'local':
-        this.callbacks.onMove?.(move);
-        return true;
-    }
-
-    return false;
-  }
-
-  public sendChatMessage(message: string): void {
-    if (this.gameMode === 'multiplayer' && this.multiplayerManager) {
-      this.multiplayerManager.sendChatMessage(message);
-    } else if (this.gameMode === 'ai') {
-      // AI responses
-      const aiResponse: ChatMessage = {
-        id: Date.now().toString(),
-        userId: 'ai',
-        username: 'AI',
-        message: this.getAIResponse(message),
-        timestamp: Date.now(),
-        sender: '',
-        content: ''
-      };
-      this.callbacks.onChatMessage?.(aiResponse);
-    } else if (this.ws) {
-      this.ws.send(JSON.stringify({ type: 'chat', message }));
-    }
-  }
-
-  private getAIResponse(message: string): string {
-    const state = this.engine.getGameState();
-    
-    // Check for common player messages
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('good game') || lowerMessage.includes('gg')) {
-      return "Thanks for the game! It was a pleasure playing with you.";
-    }
-    if (lowerMessage.includes('draw')) {
-      return "I'll consider your draw offer based on the current position.";
-    }
-    
-    // Game state based responses
-    if (state.isCheckmate) {
-      return "Good game! Would you like to play again?";
-    } else if (state.isCheck) {
-      return "Check! Be careful with your next move.";
-    } else {
-      return "I'm analyzing the position and thinking about my next move...";
-    }
-  }
-
-  public resign(): void {
-    if (this.gameMode === 'multiplayer' && this.multiplayerManager) {
-      this.multiplayerManager.resign();
-    } else if (this.gameMode === 'ai') {
-      this.callbacks.onGameEnd?.({
-        winner: {
-          id: 'ai',
-          username: 'AI',
-          email: ''
+    if (mode === 'multiplayer' && options?.serverUrl) {
+      socketClient.setCallbacks({
+        onGameStateUpdate: (newState) => {
+          this.gameState = new GameStateManager(newState);
+          this.callbacks.onMove?.(newState);
         },
-        reason: 'resignation'
+        onGameEnd: this.callbacks.onGameEnd,
+        onError: this.callbacks.onError
       });
+
+      socketClient.connect();
+      this.roomId = Math.random().toString(36).substring(7);
+      socketClient.joinRoom(this.roomId);
     }
   }
 
-  public offerDraw(): void {
-    if (this.gameMode === 'multiplayer' && this.multiplayerManager) {
-      this.multiplayerManager.offerDraw();
-    } else if (this.gameMode === 'ai') {
-      // AI always accepts draw offers
-      this.callbacks.onGameEnd?.({
-        winner: undefined,
-        reason: 'draw'
-      });
-    } else if (this.ws) {
-      this.ws.send(JSON.stringify({ type: 'drawOffer' }));
-    }
-  }
-
-  public setCallbacks(callbacks: GameCallbacks): void {
+  setCallbacks(callbacks: GameCallbacks) {
     this.callbacks = callbacks;
   }
 
-  public getGameState(): GameState {
-    return this.gameState;
+  getGameState(): GameState {
+    return this.gameState.getGameState();
   }
 
-  public cleanup(): void {
-    if (this.multiplayerManager) {
-      this.multiplayerManager.cleanup();
+  async makeMove(from: Position, to: Position): Promise<boolean> {
+    const success = this.gameState.makeMove(from, to);
+    if (!success) return false;
+
+    const newState = this.gameState.getGameState();
+    this.callbacks.onMove?.(newState);
+
+    if (this.mode === 'multiplayer' && this.roomId) {
+      socketClient.makeMove(this.roomId, { 
+        from, 
+        to,
+        piece: newState.board[from.layer][from.y][from.x]!
+      });
+    } else if (this.mode === 'ai' && newState.currentTurn === 'black') {
+      await this.makeAIMove();
     }
-    if (this.ws) {
-      this.ws.close();
+
+    return true;
+  }
+
+  cleanup() {
+    if (this.mode === 'multiplayer') {
+      socketClient.disconnect();
     }
   }
 
-  private setupWebSocket(): void {
-    if (!this.ws) return;
+  private async makeAIMove() {
+    const move = this.getBestMove();
+    if (move) {
+      await new Promise(resolve => setTimeout(resolve, 500)); // Add delay for better UX
+      await this.makeMove(move.from, move.to);
+    }
+  }
 
-    this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      switch (data.type) {
-        case 'gameStart':
-          this.callbacks.onGameStart?.(data.opponent);
-          break;
-        case 'move':
-          this.makeMove(data.from, data.to);
-          break;
-        case 'chat':
-          this.callbacks.onChatMessage?.(data.message);
-          break;
-        case 'error':
-          this.callbacks.onError?.(data.message);
-          break;
+  private getBestMove(): Move | null {
+    const state = this.getGameState();
+    const depth = this.getSearchDepth();
+    let bestMove: Move | null = null;
+    let bestScore = -Infinity;
+    const alpha = -Infinity;
+    const beta = Infinity;
+
+    const validMoves = this.getAllPossibleMoves(state, 'black');
+    for (const move of validMoves) {
+      const newState = this.applyMoveToState(state, move);
+      const score = -this.minimax(newState, depth - 1, -beta, -alpha, true);
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
       }
-    };
+    }
 
-    this.ws.onclose = () => {
-      this.callbacks.onError?.('Connection closed');
-    };
-
-    this.ws.onerror = () => {
-      this.callbacks.onError?.('WebSocket error occurred');
-    };
+    return bestMove;
   }
 
-  private createPiece(type: PieceType, color: PieceColor, x: number, y: number): ChessPiece {
-    return {
-      type,
-      color,
-      position: {
-        x, y, z: 0,
-        layer: undefined
-      },
-      hasMoved: false,
-      id: `${color}-${type}-${x}-${y}`
+  private getSearchDepth(): number {
+    switch (this.difficulty) {
+      case 'beginner': return 2;
+      case 'intermediate': return 3;
+      case 'expert': return 4;
+      default: return 2;
+    }
+  }
+
+  private minimax(state: GameState, depth: number, alpha: number, beta: number, isMaximizing: boolean): number {
+    if (depth === 0) {
+      return this.evaluatePosition(state).total;
+    }
+
+    const moves = this.getAllPossibleMoves(state, isMaximizing ? 'white' : 'black');
+    
+    if (moves.length === 0) {
+      if (state.isCheckmate) {
+        return isMaximizing ? -10000 : 10000;
+      }
+      return 0; // Stalemate
+    }
+
+    let bestScore = isMaximizing ? -Infinity : Infinity;
+    
+    for (const move of moves) {
+      const newState = this.applyMoveToState(state, move);
+      const score = this.minimax(newState, depth - 1, alpha, beta, !isMaximizing);
+      
+      if (isMaximizing) {
+        bestScore = Math.max(bestScore, score);
+        alpha = Math.max(alpha, score);
+      } else {
+        bestScore = Math.min(bestScore, score);
+        beta = Math.min(beta, score);
+      }
+      
+      if (beta <= alpha) {
+        break;
+      }
+    }
+
+    return bestScore;
+  }
+
+  private evaluatePosition(state: GameState): PositionEvaluation {
+    const evaluation: PositionEvaluation = {
+      material: 0,
+      position: 0,
+      mobility: 0,
+      kingSafety: 0,
+      centerControl: 0,
+      total: 0
     };
+
+    // Material evaluation
+    state.pieces.white.forEach(piece => {
+      evaluation.material += this.getPieceValue(piece);
+    });
+    state.pieces.black.forEach(piece => {
+      evaluation.material -= this.getPieceValue(piece);
+    });
+
+    // Position evaluation
+    state.pieces.white.forEach(piece => {
+      evaluation.position += this.evaluatePiecePosition(piece).position;
+    });
+    state.pieces.black.forEach(piece => {
+      evaluation.position -= this.evaluatePiecePosition(piece).position;
+    });
+
+    // Mobility evaluation
+    evaluation.mobility = this.evaluateMobility(state);
+
+    // King safety
+    evaluation.kingSafety = this.evaluateKingSafety(state);
+
+    // Center control
+    evaluation.centerControl = this.evaluateCenterControl(state);
+
+    // Calculate total score
+    evaluation.total = 
+      evaluation.material * 1.0 +
+      evaluation.position * 0.1 +
+      evaluation.mobility * 0.1 +
+      evaluation.kingSafety * 0.2 +
+      evaluation.centerControl * 0.1;
+
+    return evaluation;
   }
 
-  private isValidPosition(position: Position): boolean {
-    return (
-      position.x >= 0 &&
-      position.x < this.BOARD_SIZE &&
-      position.y >= 0 &&
-      position.y < this.BOARD_SIZE &&
-      position.z >= 0 &&
-      position.z < this.NUM_LAYERS
-    );
+  private getPieceValue(piece: ChessPiece): number {
+    switch (piece.type) {
+      case 'pawn': return 1;
+      case 'knight': return 3;
+      case 'bishop': return 3;
+      case 'rook': return 5;
+      case 'queen': return 9;
+      case 'king': return 0; // King's value is handled separately
+      default: return 0;
+    }
   }
 
-  private getValidMoves(piece: ChessPiece): Position[] {
-    const moves: Position[] = [];
-    const { x, y, z } = piece.position;
+  private evaluatePiecePosition(piece: ChessPiece): PieceEvaluation {
+    const evaluation: PieceEvaluation = {
+      material: this.getPieceValue(piece),
+      position: 0,
+      mobility: 0,
+      protection: 0,
+      threats: 0
+    };
 
-    // Add valid moves based on piece type
+    // Position evaluation based on piece type and board position
     switch (piece.type) {
       case 'pawn':
-        const direction = piece.color === 'white' ? 1 : -1;
-        const startRank = piece.color === 'white' ? 1 : 6;
-
-        // Forward move
-        if (this.isValidPosition({
-          x, y: y + direction, z,
-          layer: undefined
-        })) {
-          moves.push({
-            x, y: y + direction, z,
-            layer: undefined
-          });
-        }
-
-        // Initial two-square move
-        if (y === startRank && this.isValidPosition({
-          x, y: y + 2 * direction, z,
-          layer: undefined
-        })) {
-          moves.push({
-            x, y: y + 2 * direction, z,
-            layer: undefined
-          });
-        }
-
-        // Diagonal captures
-        [-1, 1].forEach(dx => {
-          const newPos = { x: x + dx, y: y + direction, z };
-          if (this.isValidPosition(newPos)) {
-            moves.push();
-          }
-        });
+        evaluation.position = this.evaluatePawnPosition(piece);
         break;
-
-      // Add other piece move logic here...
+      case 'knight':
+        evaluation.position = this.evaluateKnightPosition(piece);
+        break;
+      case 'bishop':
+        evaluation.position = this.evaluateBishopPosition(piece);
+        break;
+      case 'rook':
+        evaluation.position = this.evaluateRookPosition(piece);
+        break;
+      case 'queen':
+        evaluation.position = this.evaluateQueenPosition(piece);
+        break;
+      case 'king':
+        evaluation.position = this.evaluateKingPosition(piece);
+        break;
     }
 
+    return evaluation;
+  }
+
+  private evaluatePawnPosition(piece: ChessPiece): number {
+    const rank = piece.color === 'white' ? piece.position.y : 7 - piece.position.y;
+    const file = piece.position.x;
+    
+    // Encourage pawns to advance
+    let score = rank * 0.1;
+    
+    // Penalize doubled pawns
+    if (this.gameState.getGameState().pieces
+        .filter(p => p.type === 'pawn' && p.color === piece.color)
+        .some(p => p.position.x === file && p.position.y !== piece.position.y)) {
+      score -= 0.5;
+    }
+    
+    // Bonus for center control
+    if (file >= 2 && file <= 5) {
+      score += 0.2;
+    }
+    
+    return score;
+  }
+
+  private evaluateKnightPosition(piece: ChessPiece): number {
+    const centerDistance = Math.abs(3.5 - piece.position.x) + Math.abs(3.5 - piece.position.y);
+    return 0.5 - centerDistance * 0.1;
+  }
+
+  private evaluateBishopPosition(piece: ChessPiece): number {
+    let score = 0;
+    
+    // Bonus for diagonal control
+    const moves = this.gameState.getValidMoves(piece.position);
+    score += moves.length * 0.1;
+    
+    // Penalty for blocked diagonals
+    if (moves.length < 7) {
+      score -= 0.3;
+    }
+    
+    return score;
+  }
+
+  private evaluateRookPosition(piece: ChessPiece): number {
+    let score = 0;
+    
+    // Bonus for open files
+    const file = piece.position.x;
+    const pawnsInFile = this.gameState.getGameState().pieces
+      .filter(p => p.type === 'pawn' && p.position.x === file);
+    
+    if (pawnsInFile.length === 0) {
+      score += 0.5; // Open file
+    } else if (pawnsInFile.every(p => p.color !== piece.color)) {
+      score += 0.3; // Semi-open file
+    }
+    
+    return score;
+  }
+
+  private evaluateQueenPosition(piece: ChessPiece): number {
+    const centerDistance = Math.abs(3.5 - piece.position.x) + Math.abs(3.5 - piece.position.y);
+    return 0.3 - centerDistance * 0.05;
+  }
+
+  private evaluateKingPosition(piece: ChessPiece): number {
+    let score = 0;
+    const isEndgame = this.isEndgame();
+    
+    if (!isEndgame) {
+      // Early game: prefer corners and edges
+      if (piece.position.x === 0 || piece.position.x === 7) score += 0.3;
+      if (piece.position.y === 0 || piece.position.y === 7) score += 0.3;
+    } else {
+      // Endgame: prefer center
+      const centerDistance = Math.abs(3.5 - piece.position.x) + Math.abs(3.5 - piece.position.y);
+      score += 0.5 - centerDistance * 0.1;
+    }
+    
+    return score;
+  }
+
+  private evaluateMobility(state: GameState): number {
+    let whiteMobility = 0;
+    let blackMobility = 0;
+
+    state.pieces.white.forEach(piece => {
+      whiteMobility += this.gameState.getValidMoves(piece.position).length;
+    });
+
+    state.pieces.black.forEach(piece => {
+      blackMobility += this.gameState.getValidMoves(piece.position).length;
+    });
+
+    return whiteMobility - blackMobility;
+  }
+
+  private evaluateKingSafety(state: GameState): number {
+    let whiteKingSafety = 0;
+    let blackKingSafety = 0;
+
+    const whiteKing = state.pieces.find(p => p.type === 'king' && p.color === 'white');
+    const blackKing = state.pieces.find(p => p.type === 'king' && p.color === 'black');
+
+    if (whiteKing) {
+      // Evaluate pawn shield
+      const whitePawns = state.pieces.filter(p => 
+        p.type === 'pawn' && 
+        p.color === 'white' && 
+        Math.abs(p.position.x - whiteKing.position.x) <= 1 &&
+        p.position.y > whiteKing.position.y
+      );
+      whiteKingSafety += whitePawns.length * 0.5;
+
+      // Penalty for open lines to king
+      if (state.isCheck) whiteKingSafety -= 2;
+    }
+
+    if (blackKing) {
+      // Evaluate pawn shield
+      const blackPawns = state.pieces.filter(p => 
+        p.type === 'pawn' && 
+        p.color === 'black' && 
+        Math.abs(p.position.x - blackKing.position.x) <= 1 &&
+        p.position.y < blackKing.position.y
+      );
+      blackKingSafety += blackPawns.length * 0.5;
+
+      // Penalty for open lines to king
+      if (state.isCheck) blackKingSafety -= 2;
+    }
+
+    return whiteKingSafety - blackKingSafety;
+  }
+
+  private evaluateCenterControl(state: GameState): number {
+    const centerSquares = [
+      { x: 3, y: 3 }, { x: 3, y: 4 },
+      { x: 4, y: 3 }, { x: 4, y: 4 }
+    ];
+
+    let whiteControl = 0;
+    let blackControl = 0;
+
+    centerSquares.forEach(square => {
+      const piece = state.board[0][square.y][square.x];
+      if (piece) {
+        if (piece.color === 'white') whiteControl++;
+        else blackControl++;
+      }
+    });
+
+    return whiteControl - blackControl;
+  }
+
+  private isEndgame(): boolean {
+    const state = this.gameState.getGameState();
+    const queens = state.pieces.filter(p => p.type === 'queen');
+    const minorPieces = state.pieces.filter(p => 
+      p.type === 'knight' || p.type === 'bishop'
+    );
+    
+    return queens.length === 0 || minorPieces.length <= 4;
+  }
+
+  private getAllPossibleMoves(state: GameState, color: PieceColor): Move[] {
+    const moves: Move[] = [];
+    state.pieces
+      .filter(piece => piece.color === color)
+      .forEach(piece => {
+        const validPositions = this.gameState.getValidMoves(piece.position);
+        validPositions.forEach(pos => {
+          moves.push({
+            from: piece.position,
+            to: pos,
+            piece,
+            capturedPiece: state.board[pos.layer][pos.y][pos.x] || undefined
+          });
+        });
+      });
     return moves;
+  }
+
+  private applyMoveToState(state: GameState, move: Move): GameState {
+    const newState = JSON.parse(JSON.stringify(state)) as GameState;
+    
+    // Update board
+    newState.board[move.from.layer][move.from.y][move.from.x] = null;
+    newState.board[move.to.layer][move.to.y][move.to.x] = {
+      ...move.piece,
+      position: move.to,
+      hasMoved: true
+    };
+
+    // Update pieces array
+    if (move.capturedPiece) {
+      newState.pieces[move.capturedPiece.color] = newState.pieces[move.capturedPiece.color]
+        .filter(p => p !== move.capturedPiece);
+      newState.capturedPieces[move.capturedPiece.color].push(move.capturedPiece);
+    }
+
+    // Update current turn
+    newState.currentTurn = newState.currentTurn === 'white' ? 'black' : 'white';
+
+    return newState;
   }
 } 

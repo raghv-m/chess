@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { ChessEngine } from '../chess/engine';
-import { Move, GameState, Position, ChatMessage } from '@/types';
+import { Move, GameState, Position, ChatMessage } from '../chess/engine';
 import { User, DatabaseService } from '../auth/types';
 
 interface GameCallbacks {

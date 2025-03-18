@@ -12,10 +12,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <title>Multilayer Chess</title>
-        <meta name="description" content="Experience chess in multiple dimensions" />
-      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );

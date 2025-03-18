@@ -1,4 +1,4 @@
-import { ChessPiece, GameState, Move, Position, PieceColor } from '@/types';
+import { ChessPiece, GameState, Move, Position, PieceColor } from '../chess/engine';
 
 export class GameStateManager {
   private history: GameState[] = [];
@@ -32,7 +32,11 @@ export class GameStateManager {
 
     // Remove captured piece if any
     if (move.capturedPiece) {
-      newState.pieces = newState.pieces.filter(p => p.id !== move.capturedPiece!.id);
+      if (move.capturedPiece.color === 'white') {
+        newState.pieces.white = newState.pieces.white.filter(p => p.id !== move.capturedPiece!.id);
+      } else {
+        newState.pieces.black = newState.pieces.black.filter(p => p.id !== move.capturedPiece!.id);
+      }
     }
 
     // Update piece position
@@ -126,7 +130,7 @@ export class GameStateManager {
 
   public getPositionHistory(): Position[][] {
     return this.history.map(state => 
-      state.pieces.map(piece => piece.position)
+      [...state.pieces.white, ...state.pieces.black].map((piece: ChessPiece) => piece.position)
     );
   }
 

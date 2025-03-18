@@ -1,248 +1,160 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { GameModeManager } from '../lib/game/GameModeManager';
-import { DatabaseService, User } from '../lib/auth/types';
-import { Position, GameState, ChatMessage } from '@/types';
-import { ChessBoard } from './ChessBoard';
-import { ChatBox } from './ChatBox';
-import { GameControls } from './GameControls';
-
-// Mock database service
-const mockDb: DatabaseService = {
-  getUserStats: async () => ({
-    rating: 1200,
-    wins: 0,
-    losses: 0,
-    draws: 0,
-    gamesPlayed: 0,
-    winStreak: 0
-  }),
-  updateUserStats: async () => {},
-  getTopPlayers: async () => [],
-  getMatchHistory: async () => []
-};
-
-const createInitialBoard = () => {
-  // Create deep copies of arrays to prevent reference issues
-  const emptyRow = () => Array(8).fill(null);
-  const whitePawns = () => Array(8).fill({ type: 'pawn', color: 'white' });
-  const blackPawns = () => Array(8).fill({ type: 'pawn', color: 'black' });
-  
-  const backRow = (color: 'white' | 'black') => [
-    { type: 'rook', color },
-    { type: 'knight', color },
-    { type: 'bishop', color },
-    { type: 'queen', color },
-    { type: 'king', color },
-    { type: 'bishop', color },
-    { type: 'knight', color },
-    { type: 'rook', color }
-  ];
-
-  // Initialize board with proper structure
-  const board = [
-    [
-      backRow('white'),
-      whitePawns(),
-      emptyRow(),
-      emptyRow(),
-      emptyRow(),
-      emptyRow(),
-      blackPawns(),
-      backRow('black')
-    ]
-  ];
-
-  return {
-    board,
-    currentTurn: 'white',
-    isCheckmate: false,
-    isStalemate: false,
-    moves: []
-  } as GameState;
-};
-
-const INITIAL_BOARD = createInitialBoard();
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { GameState, ChatMessage, Position } from '@/types';
+import { GameModeManager } from '@/lib/game/GameModeManager';
 
 interface ChessGameProps {
-  gameState?: GameState;
-  onMove?: (from: Position, to: Position) => void;
+  mode: 'local' | 'ai' | 'multiplayer';
+  difficulty?: 'beginner' | 'intermediate' | 'expert';
+  initialGameState: GameState;
+  onChatMessage?: (message: ChatMessage) => void;
 }
 
-export function ChessGame({ gameState: initialGameState, onMove }: ChessGameProps) {
+export default function ChessGame({
+  mode,
+  difficulty = 'beginner',
+  initialGameState,
+  onChatMessage
+}: ChessGameProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [gameManager, setGameManager] = useState<GameModeManager>();
-  const [currentGameState, setCurrentGameState] = useState<GameState>(initialGameState || {
-    board: [Array(8).fill(Array(8).fill(null))],
-    currentTurn: 'white',
-    isCheckmate: false,
-    isStalemate: false,
-    moves: []
-  });
-  const [selectedMode, setSelectedMode] = useState<'ai' | 'multiplayer' | 'local'>('local');
-  const [selectedSquare, setSelectedSquare] = useState<Position>();
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [showChat, setShowChat] = useState(true);
-  const [isRotating, setIsRotating] = useState(false);
-  const controlsRef = useRef();
-  
-  // Initialize game manager
+  const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const [selectedPiece, setSelectedPiece] = useState<Position | null>(null);
+
+  // Three.js setup
   useEffect(() => {
-    const manager = new GameModeManager(mockDb);
-    setGameManager(manager);
-    const initialState = manager.getGameState();
-    if (initialState?.board?.[0]) {
-      setCurrentGameState(initialState);
+    if (!containerRef.current) return;
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1a);
+
+    // Camera setup
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      0.1,
+      1000
+    );
+    camera.position.set(0, 10, 10);
+    camera.lookAt(0, 0, 0);
+
+    // Renderer setup
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    containerRef.current.appendChild(renderer.domElement);
+
+    // Controls setup
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Lighting setup
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 10, 10);
+    scene.add(directionalLight);
+
+    // Chessboard setup
+    const boardGeometry = new THREE.BoxGeometry(8, 0.2, 8);
+    const boardMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+    const board = new THREE.Mesh(boardGeometry, boardMaterial);
+    board.position.set(0, -0.1, 0);
+    scene.add(board);
+
+    // Create squares
+    for (let x = 0; x < 8; x++) {
+      for (let z = 0; z < 8; z++) {
+        const squareGeometry = new THREE.BoxGeometry(1, 0.1, 1);
+        const color = (x + z) % 2 === 0 ? 0xffffff : 0x000000;
+        const squareMaterial = new THREE.MeshStandardMaterial({ color });
+        const square = new THREE.Mesh(squareGeometry, squareMaterial);
+        square.position.set(x - 3.5, 0, z - 3.5);
+        scene.add(square);
+      }
     }
+
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // Cleanup
+    return () => {
+      renderer.dispose();
+      containerRef.current?.removeChild(renderer.domElement);
+    };
+  }, []);
+
+  // Game logic setup
+  useEffect(() => {
+    const manager = new GameModeManager();
+    manager.initializeGameMode(mode, {
+      difficulty,
+      serverUrl: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001'
+    });
+
+    manager.setCallbacks({
+      onMove: (newState) => {
+        setGameState(newState);
+      },
+      onGameEnd: (result) => {
+        if (onChatMessage) {
+          onChatMessage({
+            id: Date.now().toString(),
+            userId: 'system',
+            username: 'System',
+            message: `Game Over! ${result.winner ? `${result.winner} wins` : 'Draw'} by ${result.reason}`,
+            timestamp: Date.now()
+          });
+        }
+      },
+      onError: (error) => {
+        console.error('Game error:', error);
+        if (onChatMessage) {
+          onChatMessage({
+            id: Date.now().toString(),
+            userId: 'system',
+            username: 'System',
+            message: `Error: ${error.message}`,
+            timestamp: Date.now()
+          });
+        }
+      }
+    });
+
+    setGameManager(manager);
 
     return () => {
       manager.cleanup();
     };
-  }, []);
+  }, [mode, difficulty, onChatMessage]);
 
-  useEffect(() => {
-    if (initialGameState) {
-      setCurrentGameState(initialGameState);
-    }
-  }, [initialGameState]);
-
-  // Start game mode
-  const startGame = async () => {
+  const handleSquareClick = (position: Position) => {
     if (!gameManager) return;
 
-    const testUser: User = {
-      id: 'test123',
-      username: 'TestPlayer',
-      email: 'test@example.com'
-    };
-
-    await gameManager.initializeGameMode(selectedMode, {
-      difficulty: 'intermediate',
-      serverUrl: 'ws://localhost:3000',
-      user: testUser
-    });
-
-    gameManager.setCallbacks({
-      onGameStart: (opponent) => {
-        console.log('Game started with:', opponent);
-        addChatMessage({
-          id: Date.now().toString(),
-          userId: 'system',
-          username: 'System',
-          message: `Game started against ${opponent.username}`,
-          timestamp: Date.now()
-        });
-      },
-      onGameEnd: (result) => {
-        console.log('Game ended:', result);
-        addChatMessage({
-          id: Date.now().toString(),
-          userId: 'system',
-          username: 'System',
-          message: `Game Over! ${result.winner ? `${result.winner} wins` : 'Draw'} by ${result.reason}`,
-          timestamp: Date.now()
-        });
-      }
-    });
-
-    setCurrentGameState(gameManager.getGameState());
-  };
-
-  // Handle square click
-  const handleSquareClick = (position: Position) => {
-    if (!gameManager || !currentGameState) return;
-
-    if (selectedSquare) {
-      // Attempt to make a move
-      if (onMove) {
-        onMove(selectedSquare, position);
-      }
-      setSelectedSquare(undefined);
+    if (selectedPiece) {
+      gameManager.makeMove(selectedPiece, position);
+      setSelectedPiece(null);
     } else {
-      const piece = currentGameState.board[position.layer][position.y][position.x];
-      if (piece && piece.color === currentGameState.currentTurn) {
-        setSelectedSquare(position);
+      const piece = gameState.board[position.layer][position.y][position.x];
+      if (piece && piece.color === gameState.currentTurn) {
+        setSelectedPiece(position);
       }
     }
-  };
-
-  // Handle chat message
-  const addChatMessage = (message: ChatMessage) => {
-    setChatMessages(prev => [...prev, message]);
-  };
-
-  const formatPosition = (pos: Position): string => {
-    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-    return `${files[pos.x]}${pos.y + 1}${pos.layer > 0 ? ` (L${pos.layer + 1})` : ''}`;
   };
 
   return (
-    <div className="flex h-screen">
-      <div className="flex-1 relative">
-        <Canvas
-          camera={{ position: [0, 10, 10], fov: 50 }}
-          shadows
-          className="w-full h-full"
-        >
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} castShadow />
-          <OrbitControls
-            ref={controlsRef}
-            enablePan={false}
-            enableZoom={true}
-            minPolarAngle={Math.PI / 4}
-            maxPolarAngle={Math.PI / 2}
-            enabled={!isRotating}
-          />
-          <ChessBoard
-            gameState={currentGameState}
-            selectedSquare={selectedSquare}
-            onSquareClick={handleSquareClick}
-          />
-        </Canvas>
-
-        <div className="absolute top-4 left-4 space-y-4">
-          <select 
-            value={selectedMode}
-            onChange={(e) => setSelectedMode(e.target.value as any)}
-            className="mr-2 p-2 border rounded bg-white"
-          >
-            <option value="local">Local Game</option>
-            <option value="ai">vs AI</option>
-            <option value="multiplayer">Multiplayer</option>
-          </select>
-          <button 
-            onClick={startGame}
-            className="block bg-blue-500 text-white px-4 py-2 rounded"
-          >
-            Start Game
-          </button>
-        </div>
-
-        <GameControls
-          onResign={() => gameManager?.resign()}
-          onOfferDraw={() => gameManager?.offerDraw()}
-          onToggleChat={() => setShowChat(!showChat)}
-          onToggleRotation={() => setIsRotating(!isRotating)}
-        />
-      </div>
-
-      {showChat && (
-        <ChatBox
-          messages={chatMessages}
-          onSendMessage={(text) => {
-            addChatMessage({
-              id: Date.now().toString(),
-              userId: 'test123',
-              username: 'TestPlayer',
-              message: text,
-              timestamp: Date.now()
-            });
-          }}
-        />
-      )}
+    <div className="w-full h-full" ref={containerRef}>
+      {/* Game UI overlays can be added here */}
     </div>
   );
 } 

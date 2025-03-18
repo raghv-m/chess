@@ -6,10 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaVolumeUp, FaVolumeMute, FaMoon, FaSun, FaTrophy, FaQuestionCircle } from 'react-icons/fa';
 import { HowToPlayModal } from '@/components/HowToPlayModal';
 import { LeaderboardModal } from '@/components/LeaderboardModal';
+import ChessGame from '@/components/ChessGame';
 
 export default function Home() {
   const router = useRouter();
-  const [selectedMode, setSelectedMode] = useState<'local' | 'ai' | 'multiplayer'>('local');
+  const [gameMode, setGameMode] = useState<'local' | 'ai' | 'multiplayer'>('local');
   const [difficulty, setDifficulty] = useState<'beginner' | 'intermediate' | 'expert'>('beginner');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
@@ -50,12 +51,12 @@ export default function Home() {
     }
   };
 
-  const startGame = (mode: string, difficulty?: string) => {
-    const params = new URLSearchParams();
-    params.set('mode', mode);
-    if (difficulty) {
-      params.set('difficulty', difficulty);
-    }
+  const startGame = () => {
+    const params = new URLSearchParams({
+      mode: gameMode,
+      ...(gameMode === 'ai' && { difficulty }),
+      ...(gameMode === 'multiplayer' && { roomId: Math.random().toString(36).substring(7) })
+    });
     router.push(`/game?${params.toString()}`);
   };
 
@@ -138,57 +139,38 @@ export default function Home() {
         >
           <h2 className="text-3xl font-semibold mb-6">Select Game Mode</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <GameModeCard
-              title="Local Game"
-              description="Play against a friend on the same device"
-              icon="🎮"
-              selected={selectedMode === 'local'}
-              onClick={() => setSelectedMode('local')}
-            />
-            <GameModeCard
-              title="AI Opponent"
-              description="Challenge our advanced chess AI"
-              icon="🤖"
-              selected={selectedMode === 'ai'}
-              onClick={() => setSelectedMode('ai')}
-            />
-            <GameModeCard
-              title="Online Multiplayer"
-              description="Play against players worldwide"
-              icon="🌐"
-              selected={selectedMode === 'multiplayer'}
-              onClick={() => setSelectedMode('multiplayer')}
-            />
-          </div>
-
-          {selectedMode === 'ai' && (
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">Select Difficulty</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <DifficultyButton
-                  level="beginner"
-                  selected={difficulty === 'beginner'}
-                  onClick={() => setDifficulty('beginner')}
-                />
-                <DifficultyButton
-                  level="intermediate"
-                  selected={difficulty === 'intermediate'}
-                  onClick={() => setDifficulty('intermediate')}
-                />
-                <DifficultyButton
-                  level="expert"
-                  selected={difficulty === 'expert'}
-                  onClick={() => setDifficulty('expert')}
-                />
-              </div>
+          <div className="space-y-4 w-full max-w-md">
+            <div>
+              <label className="block text-sm font-medium mb-2">Game Mode</label>
+              <select
+                value={gameMode}
+                onChange={(e) => setGameMode(e.target.value as 'local' | 'ai' | 'multiplayer')}
+                className="w-full p-2 border rounded"
+              >
+                <option value="local">Local (2 Players)</option>
+                <option value="ai">Play vs AI</option>
+                <option value="multiplayer">Online Multiplayer</option>
+              </select>
             </div>
-          )}
 
-          <div className="text-center">
+            {gameMode === 'ai' && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Difficulty</label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as 'beginner' | 'intermediate' | 'expert')}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="expert">Expert</option>
+                </select>
+              </div>
+            )}
+
             <button
-              onClick={() => startGame(selectedMode, selectedMode === 'ai' ? difficulty : undefined)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+              onClick={startGame}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors"
             >
               Start Game
             </button>
