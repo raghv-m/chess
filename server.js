@@ -89,7 +89,7 @@ wss.on('connection', (ws) => {
 
       case 'drawOffer':
         if (gameId && games.has(gameId)) {
-          broadcastToGame(gameId, {
+          broadcastToGame(gameId, { 
             type: 'drawOffer',
             playerId
           });

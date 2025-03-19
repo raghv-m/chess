@@ -1,51 +1,50 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ChessGame from '@/components/ChessGame';
-import { useEffect, useState } from 'react';
 
-const GamePage = () => {
+const validModes = ['singleplayer', 'multiplayer', 'practice'];
+const validDifficulties = ['beginner', 'intermediate', 'expert', 'tutorial', 'puzzles', 'analysis'];
+
+export default function GamePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isValidMode, setIsValidMode] = useState(true);
-
   const mode = searchParams.get('mode');
   const difficulty = searchParams.get('difficulty');
 
   useEffect(() => {
     // Validate mode and difficulty
-    const validModes = ['local', 'ai', 'multiplayer'];
-    const validDifficulties = ['beginner', 'intermediate', 'expert'];
-
-    if (!mode || !validModes.includes(mode) || 
+    if (!mode || !validModes.includes(mode) ||
         !difficulty || !validDifficulties.includes(difficulty)) {
-      setIsValidMode(false);
-      // Redirect to home page after 3 seconds if invalid parameters
-      setTimeout(() => {
-        router.push('/');
-      }, 3000);
+      router.push('/');
+      return;
     }
   }, [mode, difficulty, router]);
 
-  if (!isValidMode) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center text-white">
-          <h1 className="text-3xl font-bold mb-4">Invalid Game Mode</h1>
-          <p className="text-gray-400">Redirecting to home page...</p>
-        </div>
-      </div>
-    );
+  if (!mode || !difficulty) {
+    return null;
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <ChessGame 
-        gameMode={mode as 'local' | 'ai' | 'multiplayer'} 
-        difficulty={difficulty as 'beginner' | 'intermediate' | 'expert'} 
-      />
-    </div>
-  );
-};
+  // Map practice mode difficulties to their respective components
+  if (mode === 'practice') {
+    switch (difficulty) {
+      case 'tutorial':
+        return <ChessGame gameMode={mode} difficulty={difficulty} tutorialMode={true} />;
+      case 'puzzles':
+        return <ChessGame gameMode={mode} difficulty={difficulty} puzzleMode={true} />;
+      case 'analysis':
+        return <ChessGame gameMode={mode} difficulty={difficulty} analysisMode={true} />;
+      default:
+        return null;
+    }
+  }
 
-export default GamePage; 
+  // For singleplayer and multiplayer modes
+  return (
+    <ChessGame 
+      gameMode={mode as 'singleplayer' | 'multiplayer'} 
+      difficulty={difficulty as 'beginner' | 'intermediate' | 'expert'} 
+    />
+  );
+} 

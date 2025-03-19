@@ -1,25 +1,58 @@
-# 3D Chess Game
+# 3D Chess - Modern Chess with Advanced Features
 
-A modern 3D chess game built with Next.js, Three.js, and TypeScript. Features include local gameplay, AI opponent, and multiplayer support.
+A modern implementation of chess with 3D graphics, multiple game modes, and advanced features built with Next.js and Three.js.
+
+![3D Chess Screenshot](public/screenshot.png)
 
 ## Features
 
-- 3D chess board with realistic piece movements
-- Multiple game modes:
-  - Local (2 players on the same device)
-  - AI opponent with adjustable difficulty
-  - Online multiplayer
-- Real-time game state updates
-- Chat functionality in multiplayer mode
-- Responsive design
-- Beautiful UI with Tailwind CSS
+### Multiple Game Modes
+- **Single Player**: Play against AI with three difficulty levels
+  - Beginner: Basic move selection
+  - Intermediate: Advanced position evaluation
+  - Expert: Deep move calculation
+- **Multiplayer**: Real-time matches against other players
+- **Practice Mode**:
+  - Interactive Tutorials
+  - Tactical Puzzles
+  - Position Analysis
 
-## Prerequisites
+### Advanced Chess Features
+- Full 3D board visualization
+- Legal move validation
+- Check and checkmate detection
+- Move history with algebraic notation
+- Position evaluation
+- Captured pieces display
+- Undo/redo functionality
 
-- Node.js 18.x or later
-- npm or yarn package manager
+### Technical Features
+- Responsive design for all devices
+- Real-time multiplayer using WebSocket
+- Advanced position evaluation metrics
+- Move suggestions with explanation
+- Performance optimized 3D rendering
+- Accessibility features
+- Dark theme UI
 
-## Installation
+## Tech Stack
+
+- **Frontend Framework**: Next.js 14 with App Router
+- **Language**: TypeScript
+- **3D Graphics**: Three.js / React Three Fiber
+- **State Management**: React Context + Custom Hooks
+- **Styling**: Tailwind CSS
+- **Animations**: Framer Motion
+- **Real-time Communication**: WebSocket
+- **Deployment**: Vercel
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18.0 or higher
+- npm or yarn
+
+### Installation
 
 1. Clone the repository:
 ```bash
@@ -34,62 +67,85 @@ npm install
 yarn install
 ```
 
-## Development
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
+Edit `.env.local` with your configuration.
 
-Run the development server:
-
+4. Run the development server:
 ```bash
 npm run dev
 # or
 yarn dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Building for Production
-
-Build the application:
+### Building for Production
 
 ```bash
 npm run build
-# or
-yarn build
-```
-
-Start the production server:
-
-```bash
-npm start
-# or
-yarn start
+npm run start
 ```
 
 ## Project Structure
 
 ```
 src/
-  ├── app/              # Next.js app directory
-  ├── components/       # React components
-  ├── lib/             # Game logic and utilities
-  └── types.ts         # TypeScript type definitions
+├── app/                 # Next.js app router pages
+├── components/          # React components
+├── lib/                 # Core game logic
+│   ├── game/           # Game managers
+│   ├── ai/             # AI implementation
+│   └── socket/         # WebSocket client
+├── types/              # TypeScript types
+└── utils/              # Utility functions
 ```
 
-## Technologies Used
+## Game Modes
 
-- [Next.js](https://nextjs.org/) - React framework
-- [Three.js](https://threejs.org/) - 3D graphics library
-- [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
-- [Socket.IO](https://socket.io/) - Real-time communication
+### Single Player
+- Three AI difficulty levels
+- Position evaluation feedback
+- Move suggestions
+- Undo/redo support
+
+### Multiplayer
+- Real-time gameplay
+- Player ratings
+- Match history
+- Chat functionality
+
+### Practice Mode
+- Step-by-step tutorials
+- Tactical puzzles with solutions
+- Position analysis with evaluation metrics
+- Move suggestions with explanations
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
+
+## Deployment
+
+This project is configured for deployment on Vercel:
+
+1. Push your code to GitHub
+2. Import your repository in Vercel
+3. Configure environment variables
+4. Deploy
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Chess piece 3D models by [Author Name]
+- Sound effects from [Source]
+- AI evaluation metrics inspired by [Source]

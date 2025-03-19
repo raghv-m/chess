@@ -11,20 +11,32 @@ import { GameModeManager } from '@/lib/game/GameModeManager';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import GameInfo from './GameInfo';
+import { TutorialManager } from '@/lib/game/TutorialManager';
+import { PuzzleManager } from '@/lib/game/PuzzleManager';
+import { AnalysisManager } from '@/lib/game/AnalysisManager';
 
 interface ChessGameProps {
-  gameMode: 'local' | 'ai' | 'multiplayer';
+  gameMode: 'singleplayer' | 'multiplayer' | 'practice';
   difficulty: 'beginner' | 'intermediate' | 'expert' | 'tutorial' | 'puzzles' | 'analysis';
+  tutorialMode?: boolean;
+  puzzleMode?: boolean;
+  analysisMode?: boolean;
 }
 
-const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
+const ChessGame: React.FC<ChessGameProps> = ({ 
+  gameMode, 
+  difficulty,
+  tutorialMode,
+  puzzleMode,
+  analysisMode
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [gameManager] = useState(() => new GameModeManager());
+  const [gameManager, setGameManager] = useState<GameModeManager | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedPiece, setSelectedPiece] = useState<Position | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<GameResult | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Position | undefined>();
   const [isGameOver, setIsGameOver] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -34,38 +46,52 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
   useEffect(() => {
     const initializeGame = async () => {
       try {
-        await gameManager.initializeGameMode(gameMode, { difficulty });
-    gameManager.setCallbacks({
-          onMove: (newState) => {
-            setGameState(newState);
-            setSelectedPiece(null);
-      },
-      onGameEnd: (result) => {
-            setGameResult(result);
+        let manager;
+
+        if (tutorialMode) {
+          manager = new TutorialManager();
+        } else if (puzzleMode) {
+          manager = new PuzzleManager();
+        } else if (analysisMode) {
+          manager = new AnalysisManager();
+        } else {
+          manager = new GameModeManager();
+        }
+
+        await manager.initializeGameMode(gameMode, { difficulty });
+
+        manager.setCallbacks({
+          onMove: (state: GameState) => {
+            setGameState(state);
           },
-          onError: (message) => {
-            setError(message);
-            setTimeout(() => setError(null), 3000);
+          onGameEnd: (result: GameResult) => {
+            setResult(result);
+          },
+          onError: (error: Error) => {
+            setError(error.message);
           }
         });
-        const initialState = gameManager.getGameState();
-        setGameState(initialState);
-        setTimeout(() => setIsLoading(false), 1000);
+
+        setGameManager(manager);
+        setGameState(manager.getGameState());
+        setLoading(false);
       } catch (error) {
         setError('Failed to initialize game');
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
     initializeGame();
 
     return () => {
-      gameManager.cleanup();
+      if (gameManager) {
+        gameManager.cleanup();
+      }
     };
-  }, [gameMode, difficulty]);
+  }, [gameMode, difficulty, tutorialMode, puzzleMode, analysisMode]);
 
   const handleSquareClick = async (position: Position) => {
-    if (!gameState || isLoading) return;
+    if (!gameState || loading) return;
 
     try {
       if (!selectedPiece) {
@@ -100,28 +126,23 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
     </div>
   );
 
-  if (isLoading) {
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold text-white mb-2">Loading Chess Game</h2>
-          <p className="text-gray-400">Preparing your {gameMode} match...</p>
-        </motion.div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <div className="text-white text-center">
+          <h2 className="text-2xl font-bold mb-4">Error</h2>
+          <p className="text-red-400">{error}</p>
+        </div>
       </div>
     );
   }
 
-  if (!gameState) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <ErrorMessage message="Failed to load game" />
-      </div>
-    );
+  if (!gameState || !gameManager) {
+    return null;
   }
 
   return (
@@ -408,7 +429,9 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
             >
               <h2 className="text-2xl font-bold text-white mb-4">Game Over</h2>
               <p className="text-gray-300 mb-6">
-                {gameState.isCheckmate ? 'Checkmate!' : 'Stalemate!'}
+                {result?.winner
+                  ? `${result.winner.charAt(0).toUpperCase() + result.winner.slice(1)} wins by ${result.reason}!`
+                  : `Game ended in a ${result.reason}`}
               </p>
               <div className="flex gap-4">
                 <button
