@@ -4,16 +4,22 @@ interface SocketCallbacks {
   onMove: (state: GameState) => void;
   onGameEnd: (result: GameResult) => void;
   onError: (error: Error) => void;
+  onActiveUsersUpdate?: (count: number) => void;
 }
 
 class SocketClient {
   private socket: WebSocket | null = null;
   private callbacks: SocketCallbacks | null = null;
   private roomId: string | null = null;
+  private activeUsersCallback: ((users: string[]) => void) | null = null;
 
   setCallbacks(callbacks: SocketCallbacks, roomId: string): void {
     this.callbacks = callbacks;
     this.roomId = roomId;
+  }
+
+  setActiveUsersCallback(callback: (users: string[]) => void): void {
+    this.activeUsersCallback = callback;
   }
 
   connect(): void {
@@ -38,6 +44,9 @@ class SocketClient {
             break;
           case 'error':
             this.callbacks?.onError(new Error(data.message));
+            break;
+          case 'activeUsers':
+            this.callbacks?.onActiveUsersUpdate?.(data.count);
             break;
         }
       } catch (error) {
@@ -72,6 +81,14 @@ class SocketClient {
         type: 'move',
         roomId,
         move
+      }));
+    }
+  }
+
+  requestActiveUsers(): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({
+        type: 'requestActiveUsers'
       }));
     }
   }

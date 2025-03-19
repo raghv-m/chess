@@ -26,6 +26,7 @@ export interface Move {
 }
 
 export interface GameState {
+  moveHistory: any;
   board: (ChessPiece | null)[][][];
   currentTurn: PieceColor;
   isCheckmate: boolean;

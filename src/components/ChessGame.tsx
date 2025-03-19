@@ -35,12 +35,12 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
     const initializeGame = async () => {
       try {
         await gameManager.initializeGameMode(gameMode, { difficulty });
-        gameManager.setCallbacks({
+    gameManager.setCallbacks({
           onMove: (newState) => {
             setGameState(newState);
             setSelectedPiece(null);
-          },
-          onGameEnd: (result) => {
+      },
+      onGameEnd: (result) => {
             setGameResult(result);
           },
           onError: (message) => {
@@ -74,7 +74,7 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
           setSelectedPiece(position);
           const validMoves = gameManager.getValidMoves(position);
         }
-      } else {
+    } else {
         const success = await gameManager.makeMove(selectedPiece, position);
         if (success) {
           setSelectedPiece(null);
@@ -251,20 +251,20 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
           <div className="lg:col-span-6">
             <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
               <div className="aspect-square relative">
-                <Canvas
-                  shadows
+        <Canvas
+          shadows
                   camera={{ position: [0, 5, 5], fov: 75 }}
-                  className="w-full h-full"
-                >
+          className="w-full h-full"
+        >
                   <PerspectiveCamera makeDefault />
-                  <OrbitControls
+          <OrbitControls
                     enablePan={!isMobile}
                     enableZoom={!isMobile}
                     enableRotate={!isMobile}
                     minDistance={3}
                     maxDistance={10}
-                    minPolarAngle={Math.PI / 4}
-                    maxPolarAngle={Math.PI / 2}
+            minPolarAngle={Math.PI / 4}
+            maxPolarAngle={Math.PI / 2}
                   />
                   <ambientLight intensity={0.5} />
                   <directionalLight
@@ -273,12 +273,12 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
                     castShadow
                   />
                   <Environment preset="sunset" />
-                  <ChessBoard
+          <ChessBoard
                     gameState={gameState}
-                    selectedSquare={selectedSquare}
-                    onSquareClick={handleSquareClick}
-                  />
-                </Canvas>
+            selectedSquare={selectedSquare}
+            onSquareClick={handleSquareClick}
+          />
+        </Canvas>
               </div>
             </div>
 
@@ -370,7 +370,7 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
                     <option value="classic">Classic</option>
                     <option value="modern">Modern</option>
                     <option value="neon">Neon</option>
-                  </select>
+          </select>
                 </div>
                 <div>
                   <label className="text-gray-300 block mb-2">Sound Effects</label>
@@ -379,7 +379,7 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
                     <span className="ml-2 text-white">Enable sound effects</span>
                   </div>
                 </div>
-                <button
+          <button 
                   onClick={() => setShowSettings(false)}
                   className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
                 >
@@ -422,8 +422,8 @@ const ChessGame: React.FC<ChessGameProps> = ({ gameMode, difficulty }) => {
                   className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
                 >
                   Review Game
-                </button>
-              </div>
+          </button>
+        </div>
             </motion.div>
           </motion.div>
         )}

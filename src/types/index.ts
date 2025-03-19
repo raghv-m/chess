@@ -3,9 +3,9 @@ export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king'
 export type PieceColor = 'white' | 'black';
 
 export interface Position {
-  layer: LayerIndex;
   x: number;
   y: number;
+  layer: LayerIndex;
 }
 
 export interface ChessPieceInit {
@@ -38,6 +38,11 @@ export interface Move {
 export interface PiecesCollection {
   white: ChessPiece[];
   black: ChessPiece[];
+  find: (predicate: (piece: ChessPiece) => boolean) => ChessPiece | undefined;
+  filter: (predicate: (piece: ChessPiece) => boolean) => ChessPiece[];
+  some: (predicate: (piece: ChessPiece) => boolean) => boolean;
+  flatMap: <T>(callback: (piece: ChessPiece) => T[]) => T[];
+  push: (piece: ChessPiece) => void;
 }
 
 export interface GameState {
@@ -64,7 +69,7 @@ export interface GameState {
 }
 
 export interface GameResult {
-  winner: PieceColor | undefined;
+  winner?: PieceColor;
   reason: 'checkmate' | 'stalemate' | 'resignation' | 'timeout';
 }
 
@@ -134,7 +139,7 @@ export interface DatabaseService {
 }
 
 export interface GameOptions {
-  difficulty?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'expert';
 }
 
 export interface GameCallbacks {

@@ -53,8 +53,8 @@ export default function GameModeSelection() {
     socketClient.setCallbacks({
       onMove: () => {},
       onGameEnd: () => {},
-      onError: (message) => {
-        console.error('Socket error:', message);
+      onError: (error) => {
+        console.error('Socket error:', error);
       },
       onActiveUsersUpdate: (count) => {
         setActiveUsers(count);

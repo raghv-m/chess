@@ -1,4 +1,4 @@
-import { GameState, Move, Position, ChessPiece, PieceColor, LayerIndex, PiecesCollection } from '@/types/index';
+import { GameState, Position, ChessPiece, PieceColor, LayerIndex, PiecesCollection, Move } from '@/types/index';
 import { v4 as uuidv4 } from 'uuid';
 
 class ChessPiecesCollection implements PiecesCollection {
@@ -9,16 +9,34 @@ class ChessPiecesCollection implements PiecesCollection {
     return [...this.white, ...this.black].find(predicate);
   }
 
+  filter(predicate: (piece: ChessPiece) => boolean): ChessPiece[] {
+    return [...this.white, ...this.black].filter(predicate);
+  }
+
   some(predicate: (piece: ChessPiece) => boolean): boolean {
     return [...this.white, ...this.black].some(predicate);
+  }
+
+  flatMap<T>(callback: (piece: ChessPiece) => T[]): T[] {
+    return [...this.white, ...this.black].flatMap(callback);
+  }
+
+  push(piece: ChessPiece): void {
+    if (piece.color === 'white') {
+      this.white.push(piece);
+    } else {
+      this.black.push(piece);
+    }
   }
 }
 
 export class GameStateManager {
   private state: GameState;
+  private selectedPosition: Position | null;
 
   constructor() {
     this.state = this.createInitialState();
+    this.selectedPosition = null;
   }
 
   setState(newState: GameState): void {
@@ -84,7 +102,9 @@ export class GameStateManager {
       currentTurn: 'white',
       isCheck: false,
       isCheckmate: false,
-      isStalemate: false
+      isStalemate: false,
+      moveHistory: [],
+      moves: []
     };
   }
 
@@ -122,6 +142,16 @@ export class GameStateManager {
       }
     }
 
+    // Add move to history
+    const move: Move = {
+      from,
+      to,
+      piece,
+      ...(capturedPiece && { captured: capturedPiece })
+    };
+    this.state.moveHistory.push(move);
+    this.state.moves.push(move);
+
     // Update turn
     this.state.currentTurn = this.state.currentTurn === 'white' ? 'black' : 'white';
 
@@ -145,7 +175,7 @@ export class GameStateManager {
     return this.isValidMoveForPiece(piece, from, to);
   }
 
-  getValidMoves(position: Position, p0: boolean): Position[] {
+  getValidMoves(position: Position): Position[] {
     const piece = this.state.board[position.layer][position.y][position.x];
     if (!piece) return [];
 
