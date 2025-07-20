@@ -5,21 +5,30 @@ interface SocketCallbacks {
   onGameEnd: (result: GameResult) => void;
   onError: (error: Error) => void;
   onActiveUsersUpdate?: (count: number) => void;
+  onGameStart?: (data: { players: string[]; colors: Record<string, string> }) => void;
+  onPlayerJoined?: (data: { playerId: string; color: string }) => void;
+  onPlayerLeft?: (data: { playerId: string }) => void;
+  onChat?: (data: { message: string; playerId: string; timestamp: number }) => void;
+  onDrawOffer?: (data: { playerId: string }) => void;
+  onDrawResponse?: (data: { accepted: boolean; playerId: string }) => void;
 }
 
 class SocketClient {
   private socket: WebSocket | null = null;
   private callbacks: SocketCallbacks | null = null;
   private roomId: string | null = null;
-  private activeUsersCallback: ((users: string[]) => void) | null = null;
+  private playerId: string | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectInterval = 5000;
 
   setCallbacks(callbacks: SocketCallbacks, roomId: string): void {
     this.callbacks = callbacks;
     this.roomId = roomId;
   }
 
-  setActiveUsersCallback(callback: (users: string[]) => void): void {
-    this.activeUsersCallback = callback;
+  setPlayerId(playerId: string): void {
+    this.playerId = playerId;
   }
 
   connect(): void {
@@ -30,17 +39,48 @@ class SocketClient {
 
     this.socket.onopen = () => {
       console.log('Connected to WebSocket server');
+      this.reconnectAttempts = 0;
+      
+      // Join the room if we have a roomId and playerId
+      if (this.roomId && this.playerId) {
+        this.joinRoom(this.roomId, this.playerId);
+      }
     };
 
     this.socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('Received message:', data.type, data);
+        
         switch (data.type) {
           case 'gameState':
             this.callbacks?.onMove(data.state);
             break;
+          case 'move':
+            if (data.gameState) {
+              this.callbacks?.onMove(data.gameState);
+            }
+            break;
+          case 'gameStart':
+            this.callbacks?.onGameStart?.(data);
+            break;
+          case 'playerJoined':
+            this.callbacks?.onPlayerJoined?.(data);
+            break;
+          case 'playerLeft':
+            this.callbacks?.onPlayerLeft?.(data);
+            break;
           case 'gameEnd':
-            this.callbacks?.onGameEnd(data.result);
+            this.callbacks?.onGameEnd(data);
+            break;
+          case 'chat':
+            this.callbacks?.onChat?.(data);
+            break;
+          case 'drawOffer':
+            this.callbacks?.onDrawOffer?.(data);
+            break;
+          case 'drawResponse':
+            this.callbacks?.onDrawResponse?.(data);
             break;
           case 'error':
             this.callbacks?.onError(new Error(data.message));
@@ -48,6 +88,8 @@ class SocketClient {
           case 'activeUsers':
             this.callbacks?.onActiveUsersUpdate?.(data.count);
             break;
+          default:
+            console.log('Unknown message type:', data.type);
         }
       } catch (error) {
         console.error('Error processing WebSocket message:', error);
@@ -62,25 +104,82 @@ class SocketClient {
 
     this.socket.onclose = () => {
       console.log('Disconnected from WebSocket server');
-      setTimeout(() => this.connect(), 5000); // Attempt to reconnect after 5 seconds
+      
+      // Attempt to reconnect if we haven't exceeded max attempts
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.reconnectAttempts++;
+        console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+        setTimeout(() => this.connect(), this.reconnectInterval);
+      } else {
+        console.log('Max reconnection attempts reached');
+        this.callbacks?.onError(new Error('Connection lost and reconnection failed'));
+      }
     };
   }
 
-  joinRoom(roomId: string): void {
+  joinRoom(roomId: string, playerId: string): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
+      this.roomId = roomId;
+      this.playerId = playerId;
+      
       this.socket.send(JSON.stringify({
-        type: 'joinRoom',
-        roomId
+        type: 'joinGame',
+        gameId: roomId,
+        playerId: playerId
       }));
     }
   }
 
-  makeMove(roomId: string, move: Move): void {
+  makeMove(roomId: string, move: Move, gameState?: GameState): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      const message: any = {
+        type: 'move',
+        gameId: roomId,
+        move
+      };
+      
+      if (gameState) {
+        message.gameState = gameState;
+      }
+      
+      this.socket.send(JSON.stringify(message));
+    }
+  }
+
+  sendChat(roomId: string, message: string): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({
-        type: 'move',
-        roomId,
-        move
+        type: 'chat',
+        gameId: roomId,
+        message
+      }));
+    }
+  }
+
+  resign(roomId: string): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({
+        type: 'resign',
+        gameId: roomId
+      }));
+    }
+  }
+
+  offerDraw(roomId: string): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({
+        type: 'drawOffer',
+        gameId: roomId
+      }));
+    }
+  }
+
+  respondToDraw(roomId: string, accepted: boolean): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({
+        type: 'drawResponse',
+        gameId: roomId,
+        accepted
       }));
     }
   }
@@ -98,6 +197,11 @@ class SocketClient {
       this.socket.close();
       this.socket = null;
     }
+    this.reconnectAttempts = 0;
+  }
+
+  isConnected(): boolean {
+    return this.socket?.readyState === WebSocket.OPEN;
   }
 }
 

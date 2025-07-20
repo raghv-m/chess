@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Chess - Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .offline-container {
+            max-width: 500px;
+            padding: 2rem;
+        }
+
+        .chess-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            font-size: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .message {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .message p {
+            color: #cbd5e1;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .feature {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .feature h3 {
+            color: #3b82f6;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature p {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .retry-button {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .retry-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .retry-button:active {
+            transform: translateY(0);
+        }
+
+        .offline-indicator {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .offline-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @media (max-width: 768px) {
+            .offline-container {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-indicator">
+        <div class="offline-dot"></div>
+        Offline
+    </div>
+
+    <div class="offline-container">
+        <div class="chess-icon">♔</div>
+        
+        <h1>You're Offline</h1>
+        <p class="subtitle">Don't worry, you can still enjoy some chess features!</p>
+
+        <div class="message">
+            <p>It looks like you've lost your internet connection. While you're offline, you can:</p>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <h3>Practice Mode</h3>
+                <p>Review your recent games and analyze positions</p>
+            </div>
+            <div class="feature">
+                <h3>Tutorials</h3>
+                <p>Access cached chess lessons and strategies</p>
+            </div>
+            <div class="feature">
+                <h3>Puzzles</h3>
+                <p>Solve chess puzzles that are stored locally</p>
+            </div>
+        </div>
+
+        <button class="retry-button" onclick="retryConnection()">
+            Try Again
+        </button>
+    </div>
+
+    <script>
+        function retryConnection() {
+            if (navigator.onLine) {
+                window.location.reload();
+            } else {
+                // Show a message that we're still offline
+                alert('Still offline. Please check your internet connection and try again.');
+            }
+        }
+
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+
+        // Check connection status periodically
+        setInterval(() => {
+            if (navigator.onLine) {
+                window.location.reload();
+            }
+        }, 5000);
+
+        // Register service worker if supported
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('Service Worker registered:', registration);
+                })
+                .catch(error => {
+                    console.log('Service Worker registration failed:', error);
+                });
+        }
+    </script>
+</body>
+</html> 

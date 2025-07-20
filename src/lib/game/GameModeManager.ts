@@ -10,6 +10,7 @@ import type {
   PieceColor
 } from '@/types';
 import { socketClient } from '../socket';
+import { ChessAI } from '../ai/ChessAI';
 
 interface PieceInitData extends ChessPiece {
   type: PieceType;
@@ -25,11 +26,13 @@ export class GameModeManager {
   private difficulty: 'beginner' | 'intermediate' | 'expert';
   private callbacks: GameCallbacks = {};
   private roomId: string | null = null;
+  private ai: ChessAI;
 
   constructor() {
     this.gameState = this.createInitialGameState();
     this.mode = 'local';
     this.difficulty = 'beginner';
+    this.ai = new ChessAI('intermediate');
   }
 
   private createInitialGameState(): GameState {
@@ -141,6 +144,7 @@ export class GameModeManager {
 
       if (mode === 'multiplayer') {
         const roomId = Math.random().toString(36).substring(7);
+        const playerId = Math.random().toString(36).substring(7);
         this.roomId = roomId;
         
         socketClient.setCallbacks({
@@ -153,11 +157,25 @@ export class GameModeManager {
           },
           onError: (error: Error) => {
             this.callbacks.onError?.(error);
+          },
+          onGameStart: (data) => {
+            console.log('Game started:', data);
+            // Extract opponent info from the game start data
+            const opponentId = data.players.find(id => id !== playerId);
+            if (opponentId) {
+              this.callbacks.onGameStart?.({ id: opponentId, username: `Player ${opponentId.slice(0, 4)}` });
+            }
+          },
+          onPlayerJoined: (data) => {
+            console.log('Player joined:', data);
+          },
+          onPlayerLeft: (data) => {
+            console.log('Player left:', data);
           }
         }, roomId);
 
+        socketClient.setPlayerId(playerId);
         socketClient.connect();
-        socketClient.joinRoom(roomId);
       }
 
       this.callbacks.onMove?.(this.gameState);
@@ -219,7 +237,7 @@ export class GameModeManager {
       this.callbacks.onMove?.(this.gameState);
 
       if (this.mode === 'multiplayer' && this.roomId) {
-        socketClient.makeMove(this.roomId, move);
+        socketClient.makeMove(this.roomId, move, this.gameState);
       } else if (this.mode === 'ai' && this.gameState.currentTurn === 'black') {
         // AI's turn
         setTimeout(() => this.makeAIMove(), 500);
@@ -233,11 +251,24 @@ export class GameModeManager {
   }
 
   private async makeAIMove(): Promise<void> {
-    // Simple AI implementation - random valid move
-    const validMoves = this.getAllValidMoves('black');
-    if (validMoves.length > 0) {
-      const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-      await this.makeMove(randomMove.from, randomMove.to);
+    try {
+      // Set AI difficulty based on current difficulty setting
+      this.ai.setDifficulty(this.difficulty);
+      
+      // Get the best move from the AI
+      const aiMove = await this.ai.getNextMove(this.gameState);
+      
+      if (aiMove) {
+        await this.makeMove(aiMove.from, aiMove.to);
+      }
+    } catch (error) {
+      console.error('AI move error:', error);
+      // Fallback to random move if AI fails
+      const validMoves = this.getAllValidMoves('black');
+      if (validMoves.length > 0) {
+        const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+        await this.makeMove(randomMove.from, randomMove.to);
+      }
     }
   }
 

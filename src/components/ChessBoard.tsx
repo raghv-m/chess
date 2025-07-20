@@ -2,7 +2,9 @@
 
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Position, GameState, ChessPiece } from '@/types';
+import { Position, GameState } from '@/types';
+import type { ChessPiece } from '@/types';
+import { LayerIndex } from '@/types/index';
 import * as THREE from 'three';
 
 interface ChessBoardProps {
@@ -47,7 +49,7 @@ const ChessBoard: React.FC<ChessBoardProps> = ({ gameState, selectedPiece, onSqu
 
   const renderSquare = (x: number, y: number, layer: number) => {
     const isLight = (x + y) % 2 === 0;
-    const position: Position = { x, y, layer };
+    const position: Position = { x, y, layer: layer as LayerIndex };
     const piece = gameState.board[layer][y][x];
     const isSelected = selectedPiece?.x === x && selectedPiece?.y === y && selectedPiece?.layer === layer;
     const isHovered = hoveredSquare?.x === x && hoveredSquare?.y === y && hoveredSquare?.layer === layer;

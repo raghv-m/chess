@@ -4,16 +4,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
 import ChessBoard from './ChessBoard';
-import { GameState, Position, ChessPiece, GameResult } from '@/types/index';
+import { GameState, Position, ChessPiece, GameResult } from '@/types';
+import { LayerIndex } from '@/types/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { GameModeManager } from '@/lib/game/GameModeManager';
+import { ChessEngine } from '@/lib/chess/engine';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import GameInfo from './GameInfo';
-import { TutorialManager } from '@/lib/game/TutorialManager';
-import { PuzzleManager } from '@/lib/game/PuzzleManager';
-import { AnalysisManager } from '@/lib/game/AnalysisManager';
 
 interface ChessGameProps {
   gameMode: 'singleplayer' | 'multiplayer' | 'practice';
@@ -31,13 +29,12 @@ const ChessGame: React.FC<ChessGameProps> = ({
   analysisMode
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [gameManager, setGameManager] = useState<GameModeManager | null>(null);
+  const [engine, setEngine] = useState<ChessEngine | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [selectedPiece, setSelectedPiece] = useState<Position | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<GameResult | null>(null);
-  const [selectedSquare, setSelectedSquare] = useState<Position | undefined>();
   const [isGameOver, setIsGameOver] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -46,34 +43,34 @@ const ChessGame: React.FC<ChessGameProps> = ({
   useEffect(() => {
     const initializeGame = async () => {
       try {
-        let manager;
-
-        if (tutorialMode) {
-          manager = new TutorialManager();
-        } else if (puzzleMode) {
-          manager = new PuzzleManager();
-        } else if (analysisMode) {
-          manager = new AnalysisManager();
-        } else {
-          manager = new GameModeManager();
-        }
-
-        await manager.initializeGameMode(gameMode, { difficulty });
-
-        manager.setCallbacks({
-          onMove: (state: GameState) => {
-            setGameState(state);
-          },
-          onGameEnd: (result: GameResult) => {
-            setResult(result);
-          },
-          onError: (error: Error) => {
-            setError(error.message);
+        const chessEngine = new ChessEngine();
+        setEngine(chessEngine);
+        
+        // Get initial game state
+        const board = chessEngine.getBoard();
+        const currentTurn = 'white'; // Engine starts with white
+        
+        const initialState: GameState = {
+          board,
+          currentTurn,
+          isCheck: false,
+          isCheckmate: false,
+          isStalemate: false,
+          capturedPieces: { white: [], black: [] },
+          moveHistory: [],
+          moves: [],
+          pieces: {
+            white: [],
+            black: [],
+            find: () => undefined,
+            filter: () => [],
+            some: () => false,
+            flatMap: () => [],
+            push: () => {}
           }
-        });
-
-        setGameManager(manager);
-        setGameState(manager.getGameState());
+        };
+        
+        setGameState(initialState);
         setLoading(false);
       } catch (error) {
         setError('Failed to initialize game');
@@ -82,33 +79,64 @@ const ChessGame: React.FC<ChessGameProps> = ({
     };
 
     initializeGame();
-
-    return () => {
-      if (gameManager) {
-        gameManager.cleanup();
-      }
-    };
   }, [gameMode, difficulty, tutorialMode, puzzleMode, analysisMode]);
 
   const handleSquareClick = async (position: Position) => {
-    if (!gameState || loading) return;
+    if (!gameState || loading || !engine) return;
 
     try {
       if (!selectedPiece) {
-        const piece = gameState.board[position.layer][position.y][position.x];
+        const piece = gameState.board[position.layer as LayerIndex][position.y][position.x];
         if (piece && piece.color === gameState.currentTurn) {
           setSelectedPiece(position);
-          const validMoves = gameManager.getValidMoves(position);
         }
-    } else {
-        const success = await gameManager.makeMove(selectedPiece, position);
+      } else {
+        const success = engine.makeMove(selectedPiece, position);
         if (success) {
+          // Update game state
+          const newBoard = engine.getBoard();
+          const newGameState: GameState = {
+            ...gameState,
+            board: newBoard,
+            currentTurn: gameState.currentTurn === 'white' ? 'black' : 'white',
+            isCheck: engine.getGameState() === 'IN_CHECK',
+            isCheckmate: engine.getGameState() === 'WHITE_WINS' || engine.getGameState() === 'BLACK_WINS',
+            isStalemate: engine.getGameState() === 'STALEMATE'
+          };
+          setGameState(newGameState);
           setSelectedPiece(null);
         }
       }
     } catch (error) {
       setError('Invalid move');
       setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const handleUndoMove = () => {
+    if (engine) {
+      const success = engine.undoMove();
+      if (success) {
+        const newBoard = engine.getBoard();
+        const newGameState: GameState = {
+          ...gameState!,
+          board: newBoard,
+          currentTurn: gameState!.currentTurn === 'white' ? 'black' : 'white'
+        };
+        setGameState(newGameState);
+      }
+    }
+  };
+
+  const handleResign = () => {
+    if (gameMode === 'multiplayer') {
+      console.log('Resign requested');
+    }
+  };
+
+  const handleOfferDraw = () => {
+    if (gameMode === 'multiplayer') {
+      console.log('Draw offer requested');
     }
   };
 
@@ -141,30 +169,14 @@ const ChessGame: React.FC<ChessGameProps> = ({
     );
   }
 
-  if (!gameState || !gameManager) {
+  if (!gameState || !engine) {
     return null;
   }
 
   return (
     <div className="relative h-screen">
-      <Canvas camera={{ position: [0, 5, 5], fov: 75 }}>
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} />
-        <ChessBoard
-          gameState={gameState}
-          selectedPiece={selectedPiece}
-          onSquareClick={handleSquareClick}
-        />
-        <OrbitControls
-          enablePan={false}
-          maxPolarAngle={Math.PI / 2}
-          minDistance={3}
-          maxDistance={10}
-        />
-      </Canvas>
-
       {/* Game Info Overlay */}
-      <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white">
+      <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
         <h2 className="text-xl font-bold mb-2">
           {gameMode.charAt(0).toUpperCase() + gameMode.slice(1)} Game
         </h2>
@@ -202,255 +214,72 @@ const ChessGame: React.FC<ChessGameProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Captured Pieces */}
-      <div className="absolute bottom-4 left-4 right-4 flex justify-between">
-        <div className="bg-black/50 backdrop-blur-sm p-4 rounded-lg">
-          <h3 className="text-white font-bold mb-2">White Captures</h3>
-          <div className="flex gap-2">
-            {gameState.capturedPieces.white.map((piece, i) => (
-              <div key={i} className="w-8 h-8 flex items-center justify-center bg-white/10 rounded">
-                {piece.type.charAt(0).toUpperCase()}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-black/50 backdrop-blur-sm p-4 rounded-lg">
-          <h3 className="text-white font-bold mb-2">Black Captures</h3>
-          <div className="flex gap-2">
-            {gameState.capturedPieces.black.map((piece, i) => (
-              <div key={i} className="w-8 h-8 flex items-center justify-center bg-white/10 rounded">
-                {piece.type.charAt(0).toUpperCase()}
-              </div>
-            ))}
-          </div>
+      {/* Game Controls */}
+      <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
+        <div className="flex space-x-2">
+          <button
+            onClick={handleUndoMove}
+            className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition-colors"
+          >
+            Undo
+          </button>
+          <button
+            onClick={handleResign}
+            className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors"
+          >
+            Resign
+          </button>
+          <button
+            onClick={handleOfferDraw}
+            className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm transition-colors"
+          >
+            Draw
+          </button>
         </div>
       </div>
 
-      {/* Header */}
-      <header className="w-full bg-black/30 backdrop-blur-sm border-b border-white/10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-white">3D Chess</h1>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Sidebar */}
-          <div className="lg:col-span-3">
-            <div className="space-y-4">
-              {/* Player Info Card */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                <h2 className="text-lg font-semibold text-white mb-4">White Player</h2>
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-                    <span className="text-2xl">♔</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">Player 1</p>
-                    <p className="text-gray-400 text-sm">Rating: 1500</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Captured Pieces Card */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                <h2 className="text-lg font-semibold text-white mb-2">Captured Pieces</h2>
-                {renderCapturedPieces(gameState.capturedPieces.white, 'white')}
-              </div>
-            </div>
-          </div>
-
-          {/* Main Game Area */}
-          <div className="lg:col-span-6">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
-              <div className="aspect-square relative">
+      {/* 3D Chess Board */}
+      <div className="w-full h-full">
         <Canvas
-          shadows
-                  camera={{ position: [0, 5, 5], fov: 75 }}
-          className="w-full h-full"
+          camera={{ position: [0, 5, 8], fov: 50 }}
+          style={{ background: 'linear-gradient(to bottom, #1a202c, #2d3748)' }}
         >
-                  <PerspectiveCamera makeDefault />
-          <OrbitControls
-                    enablePan={!isMobile}
-                    enableZoom={!isMobile}
-                    enableRotate={!isMobile}
-                    minDistance={3}
-                    maxDistance={10}
-            minPolarAngle={Math.PI / 4}
-            maxPolarAngle={Math.PI / 2}
-                  />
-                  <ambientLight intensity={0.5} />
-                  <directionalLight
-                    position={[5, 5, 5]}
-                    intensity={1}
-                    castShadow
-                  />
-                  <Environment preset="sunset" />
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[10, 10, 5]} intensity={1} />
+          <pointLight position={[-10, -10, -5]} intensity={0.5} />
+          
           <ChessBoard
-                    gameState={gameState}
-            selectedSquare={selectedSquare}
+            gameState={gameState}
+            selectedPiece={selectedPiece}
             onSquareClick={handleSquareClick}
           />
+          
+          <OrbitControls
+            enablePan={true}
+            enableZoom={true}
+            enableRotate={true}
+            minDistance={5}
+            maxDistance={20}
+          />
+          
+          <Environment preset="sunset" />
         </Canvas>
-              </div>
-            </div>
+      </div>
 
-            {/* Game Controls */}
-            <div className="mt-4 grid grid-cols-3 gap-4">
-              <button className="bg-white/5 hover:bg-white/10 backdrop-blur-sm text-white px-4 py-3 rounded-lg transition-colors border border-white/10">
-                Undo Move
-              </button>
-              <button className="bg-red-500/20 hover:bg-red-500/30 backdrop-blur-sm text-red-500 px-4 py-3 rounded-lg transition-colors border border-red-500/20">
-                Resign Game
-              </button>
-              <button className="bg-white/5 hover:bg-white/10 backdrop-blur-sm text-white px-4 py-3 rounded-lg transition-colors border border-white/10">
-                Offer Draw
-              </button>
-            </div>
+      {/* Captured Pieces Display */}
+      <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
+        <h3 className="text-sm font-semibold mb-2">Captured Pieces</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-gray-300 mb-1">White</p>
+            {renderCapturedPieces(gameState.capturedPieces.white, 'white')}
           </div>
-
-          {/* Right Sidebar */}
-          <div className="lg:col-span-3">
-            <div className="space-y-4">
-              {/* Opponent Info Card */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                <h2 className="text-lg font-semibold text-white mb-4">Black Player</h2>
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-                    <span className="text-2xl">♚</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">Player 2</p>
-                    <p className="text-gray-400 text-sm">Rating: 1520</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Move History Card */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                <h2 className="text-lg font-semibold text-white mb-2">Move History</h2>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {gameState.moves.map((move, index) => (
-                    <div key={index} className="text-gray-300 text-sm">
-                      {index + 1}. {move.piece.type} {String.fromCharCode(97 + move.from.x)}{8 - move.from.y} 
-                      → {String.fromCharCode(97 + move.to.x)}{8 - move.to.y}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Game Stats Card */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                <h2 className="text-lg font-semibold text-white mb-2">Game Stats</h2>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Moves</span>
-                    <span className="text-white">{gameState.moves.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Time</span>
-                    <span className="text-white">10:00</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div>
+            <p className="text-xs text-gray-300 mb-1">Black</p>
+            {renderCapturedPieces(gameState.capturedPieces.black, 'black')}
           </div>
         </div>
       </div>
-
-      {/* Settings Modal */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
-            onClick={() => setShowSettings(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-white/10"
-              onClick={e => e.stopPropagation()}
-            >
-              <h2 className="text-2xl font-bold text-white mb-4">Settings</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-gray-300 block mb-2">Board Theme</label>
-                  <select className="w-full bg-gray-700 text-white rounded-lg px-4 py-2 border border-gray-600">
-                    <option value="classic">Classic</option>
-                    <option value="modern">Modern</option>
-                    <option value="neon">Neon</option>
-          </select>
-                </div>
-                <div>
-                  <label className="text-gray-300 block mb-2">Sound Effects</label>
-                  <div className="flex items-center">
-                    <input type="checkbox" className="form-checkbox h-5 w-5 text-blue-500" />
-                    <span className="ml-2 text-white">Enable sound effects</span>
-                  </div>
-                </div>
-          <button 
-                  onClick={() => setShowSettings(false)}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Game Over Modal */}
-      <AnimatePresence>
-        {isGameOver && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-8 max-w-md w-full mx-4 border border-white/10"
-            >
-              <h2 className="text-2xl font-bold text-white mb-4">Game Over</h2>
-              <p className="text-gray-300 mb-6">
-                {result?.winner
-                  ? `${result.winner.charAt(0).toUpperCase() + result.winner.slice(1)} wins by ${result.reason}!`
-                  : `Game ended in a ${result.reason}`}
-              </p>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setIsGameOver(false)}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  New Game
-                </button>
-                <button
-                  onClick={() => setIsGameOver(false)}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Review Game
-          </button>
-        </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

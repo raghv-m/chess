@@ -1,170 +1,290 @@
-# 3D Chess – Advanced Modern Chess Game
+# 🏆 3D Chess - Advanced Chess Game
 
-<div align="center">
-  <img src="public/screenshot.png" alt="3D Chess Screenshot" width="200"/>
+Experience chess like never before with stunning 3D graphics, intelligent AI, and real-time multiplayer battles. Built with Next.js, Three.js, and modern web technologies.
 
-  [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat&logo=next.js)](https://nextjs.org/)
-  [![Three.js](https://img.shields.io/badge/Three.js-3D-000000?style=flat&logo=three.js)](https://threejs.org/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-4.0+-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
-  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![3D Chess Game](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![Three.js](https://img.shields.io/badge/Three.js-0.161-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)
 
-  A modern, feature-rich chess platform with 3D visuals and smart gameplay built using Next.js, TypeScript, and Three.js.
-</div>
+## ✨ Features
 
-## 👨‍💻 Developer
+### 🎮 Game Modes
+- **Single Player vs AI**: Challenge intelligent AI with 3 difficulty levels
+- **Multiplayer**: Real-time games with friends and global players
+- **Practice Mode**: Learn and improve your skills
+- **Puzzle Mode**: Solve tactical chess puzzles
 
-<div align="center">
-  <h3>Raghav Mahajan</h3>
-  
-  [![GitHub](https://img.shields.io/badge/GitHub-s_raghv--m-black?style=flat&logo=github)](https://github.com/raghv-m)
-  [![LinkedIn](https://img.shields.io/badge/LinkedIn-Raghav_Mahajan-blue?style=flat&logo=linkedin)](https://www.linkedin.com/in/raghav-mahajan-17611b24b)
-  [![Instagram](https://img.shields.io/badge/Instagram-raghv.m__-pink?style=flat&logo=instagram)](https://instagram.com/ragh.v_)
-  [![Snapchat](https://img.shields.io/badge/Snapchat-rxaghav-yellow?style=flat&logo=snapchat)](https://snapchat.com/add/rxaghav)
-</div>
+### 🤖 Advanced AI
+- **Minimax Algorithm**: Sophisticated move calculation
+- **Alpha-Beta Pruning**: Optimized search performance
+- **Position Evaluation**: Smart board assessment
+- **Difficulty Levels**: Beginner, Intermediate, Expert
 
+### 🌐 Multiplayer Features
+- **Real-time Gameplay**: WebSocket-powered live matches
+- **Friend Invites**: Share room codes with friends
+- **Global Leaderboard**: Compete with players worldwide
+- **Live Chat**: Communicate during games
+- **Matchmaking**: Find opponents automatically
 
-## Features
+### 🎨 3D Graphics & UI
+- **Stunning 3D Board**: Immersive Three.js rendering
+- **Smooth Animations**: Framer Motion powered transitions
+- **Responsive Design**: Works on desktop, tablet, and mobile
+- **Dark Theme**: Modern, eye-friendly interface
+- **PWA Support**: Install as a native app
 
-### Multiple Game Modes
-- **Single Player**: Play against AI with three difficulty levels
-  - Beginner: Basic move selection
-  - Intermediate: Advanced position evaluation
-  - Expert: Deep move calculation
-- **Multiplayer**: Real-time matches against other players
-- **Practice Mode**:
-  - Interactive Tutorials
-  - Tactical Puzzles
-  - Position Analysis
+### 📚 Learning Tools
+- **Interactive Tutorials**: Step-by-step chess lessons
+- **Move Suggestions**: Get hints during games
+- **Game Analysis**: Review your moves
+- **Progress Tracking**: Monitor your improvement
 
-### Advanced Chess Features
-- Full 3D board visualization
-- Legal move validation
-- Check and checkmate detection
-- Move history with algebraic notation
-- Position evaluation
-- Captured pieces display
-- Undo/redo functionality
+### 🔧 Technical Features
+- **TypeScript**: Full type safety
+- **PWA**: Offline support and app installation
+- **Service Worker**: Background sync and caching
+- **Real-time Updates**: Live game state synchronization
+- **Cross-platform**: Works on all modern browsers
 
-### Technical Features
-- Responsive design for all devices
-- Real-time multiplayer using WebSocket
-- Advanced position evaluation metrics
-- Move suggestions with explanation
-- Performance optimized 3D rendering
-- Accessibility features
-- Dark theme UI
-
-## Tech Stack
-
-- **Frontend Framework**: Next.js 14 with App Router
-- **Language**: TypeScript
-- **3D Graphics**: Three.js / React Three Fiber
-- **State Management**: React Context + Custom Hooks
-- **Styling**: Tailwind CSS
-- **Animations**: Framer Motion
-- **Real-time Communication**: WebSocket
-- **Deployment**: Vercel
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18.0 or higher
+- Node.js 18+ 
 - npm or yarn
+- Git
 
 ### Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/3d-chess.git
-cd 3d-chess
-```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/raghv-m/chess.git
+   cd chess
+   ```
 
-2. Install dependencies:
-```bash
-npm install
-# or
-yarn install
-```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-3. Set up environment variables:
-```bash
-cp .env.example .env.local
-```
-Edit `.env.local` with your configuration.
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Edit `.env.local` with your configuration:
+   ```env
+   NEXT_PUBLIC_WS_URL=ws://localhost:3001
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   DATABASE_URL=postgresql://user:password@localhost:5432/chess_db
+   REDIS_URL=redis://localhost:6379
+   ```
 
-4. Run the development server:
-```bash
-npm run dev
-# or
-yarn dev
-```
+4. **Start development servers**
+   ```bash
+   npm run dev:full
+   ```
+   This starts both the Next.js frontend (port 3000) and WebSocket server (port 3001).
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
-### Building for Production
-
-```bash
-npm run build
-npm run start
-```
-
-## Project Structure
+## 🏗️ Project Structure
 
 ```
-src/
-├── app/                 # Next.js app router pages
-├── components/          # React components
-├── lib/                 # Core game logic
-│   ├── game/           # Game managers
-│   ├── ai/             # AI implementation
-│   └── socket/         # WebSocket client
-├── types/              # TypeScript types
-└── utils/              # Utility functions
+chess/
+├── src/
+│   ├── app/                 # Next.js app router pages
+│   │   ├── page.tsx         # Landing page
+│   │   ├── about/           # About page
+│   │   ├── tutorials/       # Tutorials page
+│   │   ├── leaderboard/     # Leaderboard page
+│   │   ├── contact/         # Contact page
+│   │   └── game/            # Game page
+│   ├── components/          # React components
+│   │   ├── ChessBoard.tsx   # 3D chess board
+│   │   ├── ChessGame.tsx    # Main game component
+│   │   ├── GameControls.tsx # Game controls
+│   │   └── ...
+│   ├── lib/                 # Core logic
+│   │   ├── chess/           # Chess engine
+│   │   ├── ai/              # AI algorithms
+│   │   ├── game/            # Game management
+│   │   ├── multiplayer/     # Multiplayer logic
+│   │   └── socket.ts        # WebSocket client
+│   └── types/               # TypeScript definitions
+├── public/                  # Static assets
+│   ├── manifest.json        # PWA manifest
+│   ├── sw.js               # Service worker
+│   └── icons/              # App icons
+├── server.js               # WebSocket server
+├── docker-compose.yml      # Docker orchestration
+└── package.json
 ```
 
-## Game Modes
+## 🎯 Game Modes
 
-### Single Player
-- Three AI difficulty levels
-- Position evaluation feedback
-- Move suggestions
-- Undo/redo support
+### Single Player vs AI
+- **Beginner**: Basic move generation, suitable for new players
+- **Intermediate**: Improved evaluation, challenging for casual players
+- **Expert**: Advanced algorithms, competitive for experienced players
 
 ### Multiplayer
-- Real-time gameplay
-- Player ratings
-- Match history
-- Chat functionality
+- **Quick Match**: Find random opponents instantly
+- **Private Room**: Create games with friends using room codes
+- **Ranked Games**: Competitive matches with rating system
+- **Casual Games**: Practice without affecting rating
 
-### Practice Mode
-- Step-by-step tutorials
-- Tactical puzzles with solutions
-- Position analysis with evaluation metrics
-- Move suggestions with explanations
+### Practice & Learning
+- **Tutorial Mode**: Interactive lessons for beginners
+- **Puzzle Mode**: Solve tactical positions
+- **Analysis Mode**: Review and analyze games
+- **Opening Trainer**: Learn chess openings
 
-## Contributing
+## 🤖 AI Engine
+
+The AI uses advanced algorithms to provide challenging gameplay:
+
+- **Minimax Algorithm**: Evaluates all possible moves
+- **Alpha-Beta Pruning**: Optimizes search performance
+- **Position Evaluation**: Assesses board strength
+- **Move Ordering**: Prioritizes promising moves
+- **Transposition Tables**: Caches evaluated positions
+
+## 🌐 Multiplayer System
+
+Real-time multiplayer powered by WebSocket technology:
+
+- **Room Management**: Create and join game rooms
+- **Player Matching**: Find opponents based on skill
+- **Live Synchronization**: Real-time game state updates
+- **Chat System**: In-game communication
+- **Spectator Mode**: Watch ongoing games
+
+## 📱 PWA Features
+
+Progressive Web App capabilities:
+
+- **Offline Support**: Play against AI without internet
+- **App Installation**: Install on desktop and mobile
+- **Push Notifications**: Game invitations and updates
+- **Background Sync**: Sync game data when online
+- **Responsive Design**: Works on all screen sizes
+
+## 🧪 Testing
+
+Run the test suite to ensure everything works correctly:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+
+# Test chess engine specifically
+npm run test:engine
+```
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+1. **Connect your repository to Vercel**
+2. **Set environment variables**:
+   - `NEXT_PUBLIC_WS_URL`: Your WebSocket server URL
+   - `NEXT_PUBLIC_APP_URL`: Your app URL
+3. **Deploy**: Vercel will automatically build and deploy
+
+### Docker
+
+1. **Build and run with Docker Compose**:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **For development**:
+   ```bash
+   docker-compose --profile dev up
+   ```
+
+### Manual Deployment
+
+1. **Build the application**:
+   ```bash
+   npm run build
+   ```
+
+2. **Start production servers**:
+   ```bash
+   npm start & node server.js
+   ```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_WS_URL` | WebSocket server URL | `ws://localhost:3001` |
+| `NEXT_PUBLIC_APP_URL` | Application URL | `http://localhost:3000` |
+| `DATABASE_URL` | PostgreSQL connection string | - |
+| `REDIS_URL` | Redis connection string | - |
+
+### Game Settings
+
+Customize the game experience in `src/lib/game/GameSettings.ts`:
+
+- Board themes and piece styles
+- Sound effects and music
+- Animation speeds
+- AI difficulty settings
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes
+4. Run tests: `npm test`
+5. Commit your changes: `git commit -m 'Add amazing feature'`
+6. Push to the branch: `git push origin feature/amazing-feature`
+7. Open a Pull Request
 
-## Deployment
-
-This project is configured for deployment on Vercel:
-
-1. Push your code to GitHub
-2. Import your repository in Vercel
-3. Configure environment variables
-4. Deploy
-
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 👨‍💻 About the Developer
 
-- Chess piece 3D models by [Author Name]
-- Sound effects from [Source]
-- AI evaluation metrics inspired by [Source]
+**Raghav Mahajan** - Full-stack developer passionate about creating innovative gaming experiences.
+
+- **GitHub**: [@raghv-m](https://github.com/raghv-m)
+- **LinkedIn**: [Raghav Mahajan](https://linkedin.com/in/raghav-mahajan-17611b24b)
+- **Portfolio**: [raghv.dev](https://www.raghv.dev)
+
+## 🙏 Acknowledgments
+
+- **Chess.com API** for inspiration and reference
+- **Three.js** for 3D graphics capabilities
+- **Next.js** for the amazing React framework
+- **Framer Motion** for smooth animations
+- **Socket.io** for real-time communication
+
+## 📞 Support
+
+- **Email**: raghav@example.com
+- **Issues**: [GitHub Issues](https://github.com/raghv-m/chess/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/raghv-m/chess/discussions)
+
+---
+
+⭐ **Star this repository if you found it helpful!**
+
+Made with ❤️ by [Raghav Mahajan](https://github.com/raghv-m)

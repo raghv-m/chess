@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Frontend and API
+  chess-app:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3001
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - DATABASE_URL=postgresql://chess_user:chess_password@postgres:5432/chess_db
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=chess_db
+      - POSTGRES_USER=chess_user
+      - POSTGRES_PASSWORD=chess_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  # Redis for session management and caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - chess-app
+    restart: unless-stopped
+
+  # Development service
+  chess-dev:
+    build: .
+    ports:
+      - "3002:3000"
+      - "3003:3001"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3003
+      - NEXT_PUBLIC_APP_URL=http://localhost:3002
+      - DATABASE_URL=postgresql://chess_user:chess_password@postgres:5432/chess_db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - postgres
+      - redis
+    command: npm run dev:full
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+  redis_data: 

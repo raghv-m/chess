@@ -32,7 +32,10 @@ export interface Move {
   from: Position;
   to: Position;
   piece: ChessPiece;
-  captured?: ChessPiece;
+  capturedPiece?: ChessPiece;
+  isEnPassant?: boolean;
+  isCastling?: boolean;
+  promotionPiece?: PieceType;
 }
 
 export interface PiecesCollection {
@@ -43,9 +46,19 @@ export interface PiecesCollection {
   some: (predicate: (piece: ChessPiece) => boolean) => boolean;
   flatMap: <T>(callback: (piece: ChessPiece) => T[]) => T[];
   push: (piece: ChessPiece) => void;
+  remove: (piece: ChessPiece) => void;
 }
 
-export interface GameState {
+export enum GameState {
+  IN_PROGRESS = 'IN_PROGRESS',
+  IN_CHECK = 'IN_CHECK',
+  WHITE_WINS = 'WHITE_WINS',
+  BLACK_WINS = 'BLACK_WINS',
+  STALEMATE = 'STALEMATE',
+  DRAW = 'DRAW'
+}
+
+export interface GameStateData {
   board: (ChessPiece | null)[][][];
   currentTurn: PieceColor;
   isCheck: boolean;
@@ -65,6 +78,7 @@ export interface GameState {
     some: (predicate: (piece: ChessPiece) => boolean) => boolean;
     flatMap: <T>(callback: (piece: ChessPiece) => T[]) => T[];
     push: (piece: ChessPiece) => void;
+    remove: (piece: ChessPiece) => void;
   };
 }
 
