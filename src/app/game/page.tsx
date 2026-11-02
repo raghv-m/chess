@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChessGame from '@/components/ChessGame';
 import PlayFriendPanel from '@/components/PlayFriendPanel';
@@ -8,7 +8,7 @@ import PlayFriendPanel from '@/components/PlayFriendPanel';
 const validModes = ['singleplayer', 'multiplayer', 'practice'];
 const validDifficulties = ['beginner', 'intermediate', 'expert', 'tutorial', 'puzzles', 'analysis'];
 
-export default function GamePage() {
+function GamePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode');
@@ -64,5 +64,13 @@ export default function GamePage() {
       gameMode={mode as 'singleplayer' | 'multiplayer'}
       difficulty={difficulty as 'beginner' | 'intermediate' | 'expert'}
     />
+  );
+}
+
+export default function GamePage() {
+  return (
+    <Suspense fallback={null}>
+      <GamePageContent />
+    </Suspense>
   );
 }
