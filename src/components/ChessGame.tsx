@@ -10,7 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChessEngine } from '@/lib/chess/engine';
 import { ChessAI } from '@/lib/ai/ChessAI';
-import { moveListString } from '@/lib/chess/notation';
+import { moveListString, moveToString } from '@/lib/chess/notation';
+import { saveGame } from '@/lib/chess/gameHistory';
 import type { AIWorkerResponse } from '@/lib/ai/ai.worker';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
@@ -116,6 +117,16 @@ const ChessGame: React.FC<ChessGameProps> = ({
       st === EngineGameState.STALEMATE || st === EngineGameState.DRAW;
   };
 
+  // Keep finished games in this browser's history.
+  const recordFinishedGame = (eng: ChessEngine, resultText: string) => {
+    saveGame({
+      mode: vsComputer ? 'computer' : 'local',
+      difficulty: vsComputer ? (difficulty as 'beginner' | 'intermediate' | 'expert') : undefined,
+      result: resultText,
+      moves: eng.getMoveHistory().map(m => moveToString(m))
+    });
+  };
+
   // Copy the engine's position and result into React state.
   const syncFromEngine = (eng: ChessEngine) => {
     const engineState = eng.getGameState();
@@ -131,16 +142,17 @@ const ChessGame: React.FC<ChessGameProps> = ({
 
     if (engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS) {
       setIsGameOver(true);
-      setResult({
-        winner: engineState === EngineGameState.WHITE_WINS ? 'white' : 'black',
-        reason: 'checkmate'
-      });
+      const winnerColor = engineState === EngineGameState.WHITE_WINS ? 'white' : 'black';
+      setResult({ winner: winnerColor, reason: 'checkmate' });
+      recordFinishedGame(eng, `${winnerColor === 'white' ? 'White' : 'Black'} wins (checkmate)`);
     } else if (engineState === EngineGameState.STALEMATE) {
       setIsGameOver(true);
       setResult({ winner: 'draw', reason: 'stalemate' });
+      recordFinishedGame(eng, 'Draw (stalemate)');
     } else if (engineState === EngineGameState.DRAW) {
       setIsGameOver(true);
       setResult({ winner: 'draw', reason: 'draw' });
+      recordFinishedGame(eng, `Draw (${eng.getDrawReason() ?? 'draw'})`.replace(/-/g, ' '));
     }
   };
 
@@ -272,6 +284,9 @@ const ChessGame: React.FC<ChessGameProps> = ({
     const winner = gameState.currentTurn === 'white' ? 'black' : 'white';
     setResult({ winner, reason: 'resignation' });
     setIsGameOver(true);
+    const resigner = gameState.currentTurn;
+    const eng = engineRef.current;
+    if (eng) recordFinishedGame(eng, `${winner === 'white' ? 'White' : 'Black'} wins (resignation, ${resigner} resigned)`);
   };
 
   // Local draw: both sides are the same person at one screen, so the
@@ -280,6 +295,8 @@ const ChessGame: React.FC<ChessGameProps> = ({
     if (isGameOver) return;
     setResult({ winner: 'draw', reason: 'draw' });
     setIsGameOver(true);
+    const eng = engineRef.current;
+    if (eng) recordFinishedGame(eng, 'Draw (agreed)');
   };
 
   const renderCapturedPieces = (pieces: ChessPiece[], color: 'white' | 'black') => (
@@ -393,6 +410,12 @@ const ChessGame: React.FC<ChessGameProps> = ({
           >
             Draw
           </button>
+          <a
+            href="/history"
+            className="bg-walnut border border-brass/40 hover:border-brass px-3 py-1 rounded text-sm text-bone transition-colors"
+          >
+            History
+          </a>
           {!isGameOver && engineRef.current?.getClaimableDraw() && (
             <button
               onClick={handleClaimDraw}
