@@ -37,26 +37,26 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+    <div className="min-h-screen bg-ink">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-black/20 backdrop-blur-md z-50 border-b border-white/10">
+      <nav className="fixed top-0 w-full bg-walnut/40 backdrop-blur-md z-50 border-b border-brass/20">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center space-x-2">
-            <FaChess className="text-3xl text-white" />
-            <span className="text-2xl font-bold text-white">3D Chess</span>
+            <FaChess className="text-3xl text-bone" />
+            <span className="text-2xl font-bold text-bone">3D Chess</span>
           </Link>
           
           <div className="hidden md:flex space-x-8">
-            <Link href="/about" className="text-white hover:text-blue-400 transition-colors">About</Link>
-            <Link href="/tutorials" className="text-white hover:text-blue-400 transition-colors">Tutorials</Link>
-            <Link href="/leaderboard" className="text-white hover:text-blue-400 transition-colors">Leaderboard</Link>
-            <Link href="/contact" className="text-blue-400 font-semibold">Contact</Link>
+            <Link href="/about" className="text-bone hover:text-brass-light transition-colors">About</Link>
+            <Link href="/tutorials" className="text-bone hover:text-brass-light transition-colors">Tutorials</Link>
+            <Link href="/leaderboard" className="text-bone hover:text-brass-light transition-colors">Leaderboard</Link>
+            <Link href="/contact" className="text-brass-light font-semibold">Contact</Link>
           </div>
           
           <div className="flex space-x-4">
             <Link 
               href="/game?mode=singleplayer&difficulty=beginner"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              className="bg-brass hover:bg-brass-light text-ink font-semibold px-4 py-2 rounded-lg transition-colors"
             >
               Play Now
             </Link>
@@ -72,11 +72,11 @@ export default function ContactPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
+            <h1 className="text-5xl md:text-7xl font-bold text-bone mb-6">
               Get in
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400"> Touch</span>
+              <span className="text-brass-light"> Touch</span>
             </h1>
-            <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
+            <p className="text-xl md:text-2xl text-bone/75 mb-8 max-w-3xl mx-auto">
               Have questions, feedback, or want to collaborate? I'd love to hear from you!
             </p>
           </motion.div>
@@ -93,14 +93,14 @@ export default function ContactPage() {
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
               viewport={{ once: true }}
-              className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10"
+              className="bg-walnut/60 backdrop-blur-sm rounded-2xl p-8 border border-brass/20"
             >
-              <h2 className="text-3xl font-bold text-white mb-6">Send a Message</h2>
+              <h2 className="text-3xl font-bold text-bone mb-6">Send a Message</h2>
               
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="name" className="block text-white font-medium mb-2">
+                    <label htmlFor="name" className="block text-bone font-medium mb-2">
                       Name
                     </label>
                     <input
@@ -110,13 +110,13 @@ export default function ContactPage() {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
+                      className="w-full bg-white/10 border border-brass/30 rounded-lg px-4 py-3 text-bone placeholder-gray-400 focus:outline-none focus:border-brass transition-colors"
                       placeholder="Your name"
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="email" className="block text-white font-medium mb-2">
+                    <label htmlFor="email" className="block text-bone font-medium mb-2">
                       Email
                     </label>
                     <input
@@ -126,14 +126,14 @@ export default function ContactPage() {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
+                      className="w-full bg-white/10 border border-brass/30 rounded-lg px-4 py-3 text-bone placeholder-gray-400 focus:outline-none focus:border-brass transition-colors"
                       placeholder="your.email@example.com"
                     />
                   </div>
                 </div>
                 
                 <div>
-                  <label htmlFor="subject" className="block text-white font-medium mb-2">
+                  <label htmlFor="subject" className="block text-bone font-medium mb-2">
                     Subject
                   </label>
                   <select
@@ -142,7 +142,7 @@ export default function ContactPage() {
                     value={formData.subject}
                     onChange={handleChange}
                     required
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-400 transition-colors"
+                    className="w-full bg-white/10 border border-brass/30 rounded-lg px-4 py-3 text-bone focus:outline-none focus:border-brass transition-colors"
                   >
                     <option value="">Select a subject</option>
                     <option value="general">General Inquiry</option>
@@ -155,7 +155,7 @@ export default function ContactPage() {
                 </div>
                 
                 <div>
-                  <label htmlFor="message" className="block text-white font-medium mb-2">
+                  <label htmlFor="message" className="block text-bone font-medium mb-2">
                     Message
                   </label>
                   <textarea
@@ -165,14 +165,14 @@ export default function ContactPage() {
                     onChange={handleChange}
                     required
                     rows={6}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors resize-none"
+                    className="w-full bg-white/10 border border-brass/30 rounded-lg px-4 py-3 text-bone placeholder-gray-400 focus:outline-none focus:border-brass transition-colors resize-none"
                     placeholder="Tell me more about your inquiry..."
                   ></textarea>
                 </div>
                 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold transition-all transform hover:scale-105"
+                  className="w-full bg-brass text-ink font-semibold py-3 rounded-lg font-semibold transition-all transform hover:scale-105"
                 >
                   Send Message
                 </button>
@@ -187,41 +187,41 @@ export default function ContactPage() {
               viewport={{ once: true }}
               className="space-y-8"
             >
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-                <h2 className="text-3xl font-bold text-white mb-6">Contact Information</h2>
+              <div className="bg-walnut/60 backdrop-blur-sm rounded-2xl p-8 border border-brass/20">
+                <h2 className="text-3xl font-bold text-bone mb-6">Contact Information</h2>
                 
                 <div className="space-y-6">
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
-                      <FaEnvelope className="text-white text-xl" />
+                    <div className="w-12 h-12 bg-brass text-ink rounded-full flex items-center justify-center">
+                      <FaEnvelope className="text-bone text-xl" />
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold">Email</h3>
-                      <p className="text-gray-300">raghav@example.com</p>
+                      <h3 className="text-bone font-semibold">Email</h3>
+                      <p className="text-bone/75">raghav@example.com</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
-                      <FaComments className="text-white text-xl" />
+                    <div className="w-12 h-12 bg-brass text-ink rounded-full flex items-center justify-center">
+                      <FaComments className="text-bone text-xl" />
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold">Live Chat</h3>
-                      <p className="text-gray-300">Available during business hours</p>
+                      <h3 className="text-bone font-semibold">Live Chat</h3>
+                      <p className="text-bone/75">Available during business hours</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
-                      <FaGlobe className="text-white text-xl" />
+                      <FaGlobe className="text-bone text-xl" />
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold">Website</h3>
+                      <h3 className="text-bone font-semibold">Website</h3>
                       <a 
                         href="https://www.raghv.dev" 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300 transition-colors"
+                        className="text-brass-light hover:text-brass-light transition-colors"
                       >
                         www.raghv.dev
                       </a>
@@ -231,15 +231,15 @@ export default function ContactPage() {
               </div>
 
               {/* Social Links */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-                <h2 className="text-2xl font-bold text-white mb-6">Connect With Me</h2>
+              <div className="bg-walnut/60 backdrop-blur-sm rounded-2xl p-8 border border-brass/20">
+                <h2 className="text-2xl font-bold text-bone mb-6">Connect With Me</h2>
                 
                 <div className="grid grid-cols-3 gap-4">
                   <a 
                     href="https://github.com/raghv-m"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-gray-800 hover:bg-gray-700 text-white p-4 rounded-lg transition-colors text-center"
+                    className="bg-walnut hover:bg-walnut/80 text-bone p-4 rounded-lg transition-colors text-center"
                   >
                     <FaGithub className="text-2xl mx-auto mb-2" />
                     <span className="text-sm">GitHub</span>
@@ -249,7 +249,7 @@ export default function ContactPage() {
                     href="https://linkedin.com/in/raghav-mahajan-17611b24b"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition-colors text-center"
+                    className="bg-brass hover:bg-brass-light text-ink font-semibold p-4 rounded-lg transition-colors text-center"
                   >
                     <FaLinkedin className="text-2xl mx-auto mb-2" />
                     <span className="text-sm">LinkedIn</span>
@@ -259,7 +259,7 @@ export default function ContactPage() {
                     href="https://www.raghv.dev"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg transition-colors text-center"
+                    className="bg-brass hover:bg-brass-light text-ink font-semibold p-4 rounded-lg transition-colors text-center"
                   >
                     <FaGlobe className="text-2xl mx-auto mb-2" />
                     <span className="text-sm">Portfolio</span>
@@ -268,23 +268,23 @@ export default function ContactPage() {
               </div>
 
               {/* Support Info */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-                <h2 className="text-2xl font-bold text-white mb-6">Support & FAQ</h2>
+              <div className="bg-walnut/60 backdrop-blur-sm rounded-2xl p-8 border border-brass/20">
+                <h2 className="text-2xl font-bold text-bone mb-6">Support & FAQ</h2>
                 
                 <div className="space-y-4">
-                  <div className="border-l-4 border-blue-400 pl-4">
-                    <h3 className="text-white font-semibold">Technical Issues</h3>
-                    <p className="text-gray-300 text-sm">Having trouble with the game? Check our troubleshooting guide.</p>
+                  <div className="border-l-4 border-brass pl-4">
+                    <h3 className="text-bone font-semibold">Technical Issues</h3>
+                    <p className="text-bone/75 text-sm">Having trouble with the game? Check our troubleshooting guide.</p>
                   </div>
                   
-                  <div className="border-l-4 border-purple-400 pl-4">
-                    <h3 className="text-white font-semibold">Feature Requests</h3>
-                    <p className="text-gray-300 text-sm">Want to see new features? Let us know your ideas!</p>
+                  <div className="border-l-4 border-brass pl-4">
+                    <h3 className="text-bone font-semibold">Feature Requests</h3>
+                    <p className="text-bone/75 text-sm">Want to see new features? Let us know your ideas!</p>
                   </div>
                   
                   <div className="border-l-4 border-green-400 pl-4">
-                    <h3 className="text-white font-semibold">Collaboration</h3>
-                    <p className="text-gray-300 text-sm">Interested in working together? I'm always open to new opportunities.</p>
+                    <h3 className="text-bone font-semibold">Collaboration</h3>
+                    <p className="text-bone/75 text-sm">Interested in working together? I'm always open to new opportunities.</p>
                   </div>
                 </div>
               </div>
@@ -294,7 +294,7 @@ export default function ContactPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 px-4 bg-black/20">
+      <section className="py-20 px-4 bg-walnut/40">
         <div className="container mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -303,8 +303,8 @@ export default function ContactPage() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl font-bold text-white mb-4">Frequently Asked Questions</h2>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            <h2 className="text-4xl font-bold text-bone mb-4">Frequently Asked Questions</h2>
+            <p className="text-xl text-bone/75 max-w-2xl mx-auto">
               Find answers to common questions about 3D Chess and my work.
             </p>
           </motion.div>
@@ -342,10 +342,10 @@ export default function ContactPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10"
+                className="bg-walnut/60 backdrop-blur-sm rounded-xl p-6 border border-brass/20"
               >
-                <h3 className="text-lg font-semibold text-white mb-3">{faq.question}</h3>
-                <p className="text-gray-300">{faq.answer}</p>
+                <h3 className="text-lg font-semibold text-bone mb-3">{faq.question}</h3>
+                <p className="text-bone/75">{faq.answer}</p>
               </motion.div>
             ))}
           </div>
@@ -361,13 +361,13 @@ export default function ContactPage() {
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl font-bold text-white mb-6">Ready to Play?</h2>
-            <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+            <h2 className="text-4xl font-bold text-bone mb-6">Ready to Play?</h2>
+            <p className="text-xl text-bone/75 mb-8 max-w-2xl mx-auto">
               Experience the future of chess gaming with our advanced 3D platform.
             </p>
             <Link 
               href="/game?mode=singleplayer&difficulty=beginner"
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all transform hover:scale-105 inline-block"
+              className="bg-brass text-ink font-semibold px-8 py-4 rounded-lg text-lg font-semibold transition-all transform hover:scale-105 inline-block"
             >
               Start Playing Now
             </Link>
@@ -376,9 +376,9 @@ export default function ContactPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-black/40 border-t border-white/10 py-12 px-4">
+      <footer className="bg-black/40 border-t border-brass/20 py-12 px-4">
         <div className="container mx-auto text-center">
-          <p className="text-gray-300">&copy; 2024 3D Chess. Built with ❤️ by Raghav Mahajan</p>
+          <p className="text-bone/75">&copy; 2024 3D Chess. Built with ❤️ by Raghav Mahajan</p>
         </div>
       </footer>
     </div>
