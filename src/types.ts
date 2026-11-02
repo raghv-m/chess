@@ -49,7 +49,7 @@ export interface GameState {
 }
 
 export interface GameResult {
-  winner?: PieceColor;
+  winner?: PieceColor | 'draw';
   reason: 'checkmate' | 'stalemate' | 'resignation' | 'draw' | 'timeout';
 }
 

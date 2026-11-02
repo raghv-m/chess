@@ -83,8 +83,8 @@ export interface GameStateData {
 }
 
 export interface GameResult {
-  winner?: PieceColor;
-  reason: 'checkmate' | 'stalemate' | 'resignation' | 'timeout';
+  winner?: PieceColor | 'draw';
+  reason: 'checkmate' | 'stalemate' | 'resignation' | 'draw' | 'timeout';
 }
 
 export interface GameSettings {
