@@ -1,67 +1,40 @@
-import { GameModeManager } from '../lib/game/GameModeManager';
-import { DatabaseService } from '../lib/auth/types';
+import { ChessEngine } from '@/lib/chess/engine';
+import { ChessAI } from '@/lib/ai/ChessAI';
+import { LayerIndex } from '@/types/index';
 
-// Mock database service for testing
-const mockDb: DatabaseService = {
-  updateMatchResult: async () => {},
-  getUserStats: async () => ({
-    rating: 1200,
-    wins: 0,
-    losses: 0,
-    draws: 0,
-    gamesPlayed: 0,
-    winStreak: 0
-  }),
-  updateUserStats: async () => {},
-  getTopPlayers: async () => [],
-  getMatchHistory: async () => []
-};
+describe('ChessAI', () => {
+  test.each(['beginner', 'intermediate', 'expert'] as const)(
+    'returns a legal opening move at %s level',
+    (difficulty) => {
+      const engine = new ChessEngine();
+      const ai = new ChessAI(difficulty);
+      const move = ai.chooseMove(engine);
+      expect(move).not.toBeNull();
+      const legal = engine.getValidMoves(move!.from);
+      expect(legal.some(m => m.x === move!.to.x && m.y === move!.to.y && m.layer === move!.to.layer)).toBe(true);
+    }
+  );
 
-async function testGame() {
-  // Initialize game manager
-  const gameManager = new GameModeManager(mockDb);
+  test('takes a queen that is hanging', () => {
+    const engine = new ChessEngine();
+    const board = engine.getBoard();
+    // Clear the board of everything except the two kings, then set up
+    // a black rook that can capture an undefended white queen.
+    for (let layer = 0; layer < 3; layer++) {
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          board[layer as LayerIndex][y][x] = null;
+        }
+      }
+    }
+    board[0][0][4] = { id: 'wk', type: 'king', color: 'white', position: { x: 4, y: 0, layer: 0 }, hasMoved: true };
+    board[0][7][4] = { id: 'bk', type: 'king', color: 'black', position: { x: 4, y: 7, layer: 0 }, hasMoved: true };
+    board[0][3][0] = { id: 'wq', type: 'queen', color: 'white', position: { x: 0, y: 3, layer: 0 }, hasMoved: true };
+    board[0][3][7] = { id: 'br', type: 'rook', color: 'black', position: { x: 7, y: 3, layer: 0 }, hasMoved: true };
+    (engine as any).currentPlayer = 'black';
 
-  // Test AI mode
-  console.log('Testing AI mode...');
-  await (gameManager as any).initializeGameMode('ai', {
-    difficulty: 'intermediate'
+    const move = new ChessAI('intermediate').chooseMove(engine);
+    expect(move).not.toBeNull();
+    expect(move!.to).toEqual({ x: 0, y: 3, layer: 0 });
   });
-  
-  // Make a move (e2 to e4)
-  const moveResult = await gameManager.makeMove(
-    { x: 4, y: 1, layer: 0 }, // from e2
-    { x: 4, y: 3, layer: 0 }  // to e4
-  );
-  console.log('Move result:', moveResult);
-  console.log('Game state:', gameManager.getGameState());
-
-  // Test multiplayer mode
-  console.log('\nTesting multiplayer mode...');
-  const testUser = {
-    id: 'test123',
-    username: 'TestPlayer',
-    email: 'test@example.com'
-  };
-
-  try {
-    await gameManager.initializeGameMode('multiplayer', {
-      user: testUser,
-      serverUrl: 'ws://localhost:3000'
-    });
-    console.log('Multiplayer mode initialized');
-  } catch (error) {
-    console.log('Multiplayer connection error:', error);
-  }
-
-  // Test local mode
-  console.log('\nTesting local mode...');
-  await gameManager.initializeGameMode('local');
-  const localMoveResult = await gameManager.makeMove(
-    { x: 4, y: 1, layer: 0 }, // from e2
-    { x: 4, y: 3, layer: 0 }  // to e4
-  );
-  console.log('Local move result:', localMoveResult);
-}
-
-// Run the test
-testGame().catch(console.error); 
+});

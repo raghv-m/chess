@@ -75,8 +75,11 @@ describe('ChessEngine', () => {
       for (let x = 0; x < 8; x++) {
         board[0 as LayerIndex][6][x] = null;
         board[0 as LayerIndex][1][x] = null;
-        board[0 as LayerIndex][0][x] = null;
-        board[0 as LayerIndex][7][x] = null;
+        // Keep both kings on the board (file e) so the move legality check has them.
+        if (x !== 4) {
+          board[0 as LayerIndex][0][x] = null;
+          board[0 as LayerIndex][7][x] = null;
+        }
       }
       // White pawn promotions
       const promotionTypes = ['queen', 'rook', 'bishop', 'knight'] as const;
@@ -90,6 +93,8 @@ describe('ChessEngine', () => {
         };
         board[0 as LayerIndex][6][i] = pawn;
         const move = { x: i, y: 7, layer: 0 as LayerIndex };
+        // Each promotion ends the turn, so it is white's move again for every white pawn
+        (engine as any).currentPlayer = 'white';
         const success = engine.makeMove({ x: i, y: 6, layer: 0 as LayerIndex }, move, type);
         expect(success).toBe(true);
         const promoted = engine.getPieceAt(move);
@@ -101,15 +106,21 @@ describe('ChessEngine', () => {
         id: 'white-pawn-q',
         type: 'pawn' as const,
         color: 'white' as const,
-        position: { x: 4, y: 6, layer: 0 as LayerIndex },
+        position: { x: 5, y: 6, layer: 0 as LayerIndex },
         hasMoved: true
       };
-      board[0 as LayerIndex][6][4] = pawnQ;
-      const moveQ = { x: 4, y: 7, layer: 0 as LayerIndex };
-      const successQ = engine.makeMove({ x: 4, y: 6, layer: 0 as LayerIndex }, moveQ);
+      board[0 as LayerIndex][6][5] = pawnQ;
+      const moveQ = { x: 5, y: 7, layer: 0 as LayerIndex };
+      (engine as any).currentPlayer = 'white';
+      const successQ = engine.makeMove({ x: 5, y: 6, layer: 0 as LayerIndex }, moveQ);
       expect(successQ).toBe(true);
       const promotedQ = engine.getPieceAt(moveQ);
       expect(promotedQ?.type).toBe('queen');
+      // The white promotions above left white pieces on the top rank, which would
+      // put the black king in check. Clear them so black starts from a legal position.
+      for (let x = 0; x < 8; x++) {
+        if (x !== 4) board[0 as LayerIndex][7][x] = null;
+      }
       // Black pawn promotions
       for (let x = 0; x < 4; x++) {
         board[0 as LayerIndex][1][x] = {
@@ -131,16 +142,16 @@ describe('ChessEngine', () => {
         expect(promoted?.color).toBe('black');
       }
       // Default to queen for black
-      board[0 as LayerIndex][1][4] = {
+      board[0 as LayerIndex][1][5] = {
         id: 'black-pawn-q',
         type: 'pawn' as const,
         color: 'black' as const,
-        position: { x: 4, y: 1, layer: 0 as LayerIndex },
+        position: { x: 5, y: 1, layer: 0 as LayerIndex },
         hasMoved: true
       };
       (engine as any).currentPlayer = 'black';
-      const moveQb = { x: 4, y: 0, layer: 0 as LayerIndex };
-      const successQb = engine.makeMove({ x: 4, y: 1, layer: 0 as LayerIndex }, moveQb);
+      const moveQb = { x: 5, y: 0, layer: 0 as LayerIndex };
+      const successQb = engine.makeMove({ x: 5, y: 1, layer: 0 as LayerIndex }, moveQb);
       expect(successQb).toBe(true);
       const promotedQb = engine.getPieceAt(moveQb);
       expect(promotedQb?.type).toBe('queen');
@@ -165,20 +176,20 @@ describe('ChessEngine', () => {
       const board = engine.getBoard();
       
       // Clear some pieces to create a check position
-      board[0 as LayerIndex][1][0] = null; // Remove white pawn
-      board[0 as LayerIndex][6][0] = null; // Remove black pawn
+      board[0 as LayerIndex][1][4] = null; // Clear the e2 pawn so the file is open
       
-      // Place a black queen to attack white king
+      // Black queen on e4 attacks the white king on e1 down the open file
       const queen = {
         id: 'test-queen',
         type: 'queen' as const,
         color: 'black' as const,
-        position: { x: 0, y: 1, layer: 0 as LayerIndex },
+        position: { x: 4, y: 3, layer: 0 as LayerIndex },
         hasMoved: true
       };
-      board[0 as LayerIndex][1][0] = queen;
+      board[0 as LayerIndex][3][4] = queen;
       
-      // The game state should reflect check
+      // Board was edited directly, so recompute the state before reading it
+      (engine as any).updateGameState();
       const gameState = engine.getGameState();
       expect(gameState).toBe(GameState.IN_CHECK);
     });
@@ -226,33 +237,33 @@ describe('ChessEngine', () => {
     test('should validate rook movement', () => {
       const rookPos = { x: 0, y: 0, layer: 0 as LayerIndex };
       const validMoves = engine.getValidMoves(rookPos);
-      
-      // Rook should not be able to move initially (blocked by pawn)
-      expect(validMoves).toHaveLength(0);
+      // Blocked on its own layer, but it can step up to the empty square on layer 1 (rook)
+      expect(validMoves.length).toBeGreaterThan(0);
+      expect(validMoves.every(m => m.x === 0 && m.y === 0 && m.layer === 1)).toBe(true);
     });
 
     test('should validate bishop movement', () => {
       const bishopPos = { x: 2, y: 0, layer: 0 as LayerIndex };
       const validMoves = engine.getValidMoves(bishopPos);
-      
-      // Bishop should not be able to move initially (blocked by pawn)
-      expect(validMoves).toHaveLength(0);
+      // Blocked on its own layer, but it can step up to the empty square on layer 1 (bishop)
+      expect(validMoves.length).toBeGreaterThan(0);
+      expect(validMoves.every(m => m.x === 2 && m.y === 0 && m.layer === 1)).toBe(true);
     });
 
     test('should validate queen movement', () => {
       const queenPos = { x: 3, y: 0, layer: 0 as LayerIndex };
       const validMoves = engine.getValidMoves(queenPos);
-      
-      // Queen should not be able to move initially (blocked by pawn)
-      expect(validMoves).toHaveLength(0);
+      // Blocked on its own layer, but it can step up to the empty square on layer 1 (queen)
+      expect(validMoves.length).toBeGreaterThan(0);
+      expect(validMoves.every(m => m.x === 3 && m.y === 0 && m.layer === 1)).toBe(true);
     });
 
     test('should validate king movement', () => {
       const kingPos = { x: 4, y: 0, layer: 0 as LayerIndex };
       const validMoves = engine.getValidMoves(kingPos);
-      
-      // King should not be able to move initially (blocked by pawns)
-      expect(validMoves).toHaveLength(0);
+      // Blocked on its own layer, but it can step up to the empty square on layer 1 (king)
+      expect(validMoves.length).toBeGreaterThan(0);
+      expect(validMoves.every(m => m.x === 4 && m.y === 0 && m.layer === 1)).toBe(true);
     });
   });
 

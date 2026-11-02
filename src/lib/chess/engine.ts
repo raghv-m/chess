@@ -672,57 +672,59 @@ export class ChessEngine {
   }
 
   private isPositionUnderAttack(position: Position, attackingColor: 'white' | 'black', board: (ChessPiece | null)[][][] = this.board): boolean {
-    // Check all pieces of the attacking color
-    for (let layer = 0; layer < 3; layer++) {
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          const piece = board[layer][y][x];
-          if (piece && piece.color === attackingColor) {
-            const moves = this.getValidMovesForPieceOnBoard(piece, board);
-            if (moves.some(move => move.x === position.x && move.y === position.y && move.layer === position.layer)) {
+    // Evaluate attacks against the supplied board by temporarily swapping it in,
+    // so the real move generators (sliding pieces, layer steps) are used.
+    const savedBoard = this.board;
+    this.board = board;
+    try {
+      for (let layer = 0; layer < 3; layer++) {
+        for (let y = 0; y < 8; y++) {
+          for (let x = 0; x < 8; x++) {
+            const piece = board[layer][y][x];
+            if (!piece || piece.color !== attackingColor) continue;
+            const from: Position = { x, y, layer: layer as LayerIndex };
+            if (this.attacksSquare(piece, from, position)) {
               return true;
             }
           }
         }
       }
+      return false;
+    } finally {
+      this.board = savedBoard;
     }
-    return false;
+  }
+
+  /**
+   * Does `piece` on `from` attack `target`? Attacks differ from moves in two
+   * places: a pawn attacks its diagonals whether or not anything is there,
+   * and a king's castling is not an attack (and must not recurse here).
+   */
+  private attacksSquare(piece: ChessPiece, from: Position, target: Position): boolean {
+    if (piece.type === 'pawn') {
+      const dir = piece.color === 'white' ? 1 : -1;
+      if (target.layer !== from.layer || target.y !== from.y + dir) return false;
+      return Math.abs(target.x - from.x) === 1;
+    }
+    if (piece.type === 'king') {
+      const dx = Math.abs(target.x - from.x);
+      const dy = Math.abs(target.y - from.y);
+      const dl = Math.abs(target.layer - from.layer);
+      return dx <= 1 && dy <= 1 && dl <= 1 && !(dx === 0 && dy === 0 && dl === 0);
+    }
+    return this.getAllPossibleMoves(from).some(
+      m => m.x === target.x && m.y === target.y && m.layer === target.layer
+    );
   }
 
   private getValidMovesForPieceOnBoard(piece: ChessPiece, board: (ChessPiece | null)[][][]): Position[] {
-    // This is a simplified version - in a real implementation, you'd need to duplicate the move logic
-    // For now, we'll return basic moves
-    const moves: Position[] = [];
-
-    switch (piece.type) {
-      case 'pawn':
-        // Basic pawn moves
-        const direction = piece.color === 'white' ? 1 : -1;
-        const forwardPos = { x: piece.position.x, y: piece.position.y + direction, layer: piece.position.layer };
-        if (this.isValidPosition(forwardPos) && !this.getPieceAtOnBoard(forwardPos, board)) {
-          moves.push(forwardPos);
-        }
-        break;
-      case 'knight':
-        // Basic knight moves
-        const knightMoves = [
-          [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-          [1, -2], [1, 2], [2, -1], [2, 1]
-        ];
-        knightMoves.forEach(([dx, dy]) => {
-          const pos = { x: piece.position.x + dx, y: piece.position.y + dy, layer: piece.position.layer };
-          if (this.isValidPosition(pos)) {
-            const targetPiece = this.getPieceAtOnBoard(pos, board);
-            if (!targetPiece || targetPiece.color !== piece.color) {
-              moves.push(pos);
-            }
-          }
-        });
-        break;
-      // Add other piece types as needed
+    const savedBoard = this.board;
+    this.board = board;
+    try {
+      return this.getAllPossibleMoves(piece.position);
+    } finally {
+      this.board = savedBoard;
     }
-
-    return moves;
   }
 
   private getPieceAtOnBoard(position: Position, board: (ChessPiece | null)[][][]): ChessPiece | null {

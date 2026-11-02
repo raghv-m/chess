@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
 import ChessBoard from './ChessBoard';
@@ -9,6 +9,7 @@ import { LayerIndex, GameState as EngineGameState } from '@/types/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChessEngine } from '@/lib/chess/engine';
+import { ChessAI } from '@/lib/ai/ChessAI';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import GameInfo from './GameInfo';
@@ -39,11 +40,22 @@ const ChessGame: React.FC<ChessGameProps> = ({
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
+  // Singleplayer means "you against the computer": you play white, the computer plays black.
+  const vsComputer = gameMode === 'singleplayer' &&
+    (difficulty === 'beginner' || difficulty === 'intermediate' || difficulty === 'expert');
+  const ai = useMemo(
+    () => new ChessAI(vsComputer ? (difficulty as 'beginner' | 'intermediate' | 'expert') : 'intermediate'),
+    [difficulty, vsComputer]
+  );
+  const [aiThinking, setAiThinking] = useState(false);
+  // Handlers read the engine through a ref so timers never see a stale copy.
+  const engineRef = useRef<ChessEngine | null>(null);
 
   useEffect(() => {
     const initializeGame = async () => {
       try {
         const chessEngine = new ChessEngine();
+        engineRef.current = chessEngine;
         setEngine(chessEngine);
 
         // Get initial game state
@@ -81,49 +93,80 @@ const ChessGame: React.FC<ChessGameProps> = ({
     initializeGame();
   }, [gameMode, difficulty, tutorialMode, puzzleMode, analysisMode]);
 
+  const isOverState = (eng: ChessEngine) => {
+    const st = eng.getGameState();
+    return st === EngineGameState.WHITE_WINS || st === EngineGameState.BLACK_WINS ||
+      st === EngineGameState.STALEMATE || st === EngineGameState.DRAW;
+  };
+
+  // Copy the engine's position and result into React state.
+  const syncFromEngine = (eng: ChessEngine) => {
+    const engineState = eng.getGameState();
+    setGameState(prev => ({
+      ...prev!,
+      board: eng.getBoard(),
+      currentTurn: eng.getCurrentPlayer(),
+      isCheck: engineState === EngineGameState.IN_CHECK,
+      isCheckmate: engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS,
+      isStalemate: engineState === EngineGameState.STALEMATE
+    }));
+    setSelectedPiece(null);
+
+    if (engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS) {
+      setIsGameOver(true);
+      setResult({
+        winner: engineState === EngineGameState.WHITE_WINS ? 'white' : 'black',
+        reason: 'checkmate'
+      });
+    } else if (engineState === EngineGameState.STALEMATE) {
+      setIsGameOver(true);
+      setResult({ winner: 'draw', reason: 'stalemate' });
+    } else if (engineState === EngineGameState.DRAW) {
+      setIsGameOver(true);
+      setResult({ winner: 'draw', reason: 'draw' });
+    }
+  };
+
+  // The computer answers after a short pause so the human can see the move land.
+  const scheduleComputerMove = () => {
+    setAiThinking(true);
+    setTimeout(() => {
+      const eng = engineRef.current;
+      if (eng && eng.getCurrentPlayer() === 'black' && !isOverState(eng)) {
+        const reply = ai.chooseMove(eng);
+        if (reply) {
+          eng.makeMove(reply.from, reply.to);
+        }
+        syncFromEngine(eng);
+      }
+      setAiThinking(false);
+    }, 300);
+  };
+
   const handleSquareClick = async (position: Position) => {
-    if (!gameState || loading || !engine || isGameOver) return;
+    const eng = engineRef.current;
+    if (!gameState || loading || !eng || isGameOver) return;
+    // While the computer is thinking, or on its turn, the board is not yours.
+    if (vsComputer && (aiThinking || eng.getCurrentPlayer() !== 'white')) return;
 
     try {
       if (!selectedPiece) {
         const piece = gameState.board[position.layer as LayerIndex][position.y][position.x];
-        if (piece && piece.color === gameState.currentTurn) {
+        if (piece && piece.color === eng.getCurrentPlayer()) {
           setSelectedPiece(position);
         }
       } else {
-        const success = engine.makeMove(
+        const success = eng.makeMove(
           { ...selectedPiece, layer: selectedPiece.layer as LayerIndex },
           { ...position, layer: position.layer as LayerIndex }
         );
         if (success) {
-          // Update game state
-          const newBoard = engine.getBoard();
-          const engineState = engine.getGameState();
-          const newGameState: GameState = {
-            ...gameState,
-            board: newBoard,
-            currentTurn: gameState.currentTurn === 'white' ? 'black' : 'white',
-            isCheck: engineState === EngineGameState.IN_CHECK,
-            isCheckmate: engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS,
-            isStalemate: engineState === EngineGameState.STALEMATE
-          };
-          setGameState(newGameState);
-          setSelectedPiece(null);
-
-          // Terminal states end the local game for real
-          if (engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS) {
-            setIsGameOver(true);
-            setResult({
-              winner: engineState === EngineGameState.WHITE_WINS ? 'white' : 'black',
-              reason: 'checkmate'
-            });
-          } else if (engineState === EngineGameState.STALEMATE) {
-            setIsGameOver(true);
-            setResult({ winner: 'draw', reason: 'stalemate' });
-          } else if (engineState === EngineGameState.DRAW) {
-            setIsGameOver(true);
-            setResult({ winner: 'draw', reason: 'draw' });
+          syncFromEngine(eng);
+          if (vsComputer && !isOverState(eng)) {
+            scheduleComputerMove();
           }
+        } else {
+          setSelectedPiece(null);
         }
       }
     } catch (error) {
@@ -133,18 +176,17 @@ const ChessGame: React.FC<ChessGameProps> = ({
   };
 
   const handleUndoMove = () => {
-    if (engine) {
-      const success = engine.undoMove();
-      if (success) {
-        const newBoard = engine.getBoard();
-        const newGameState: GameState = {
-          ...gameState!,
-          board: newBoard,
-          currentTurn: gameState!.currentTurn === 'white' ? 'black' : 'white'
-        };
-        setGameState(newGameState);
-      }
+    const eng = engineRef.current;
+    if (!eng || aiThinking) return;
+    // Against the computer, one undo takes back the computer's reply and the
+    // human move before it, so it is white's turn again.
+    const undone = eng.undoMove();
+    if (undone && vsComputer && eng.getCurrentPlayer() === 'black') {
+      eng.undoMove();
     }
+    setIsGameOver(false);
+    setResult(null);
+    syncFromEngine(eng);
   };
 
   // Local resign: the side to move concedes, the opponent wins.
@@ -210,6 +252,11 @@ const ChessGame: React.FC<ChessGameProps> = ({
         <p className="text-sm">
           Current Turn: {gameState.currentTurn.charAt(0).toUpperCase() + gameState.currentTurn.slice(1)}
         </p>
+        {vsComputer && (
+          <p className="text-sm text-gray-300 mt-1" role="status" aria-live="polite">
+            {aiThinking ? 'Computer is thinking…' : gameState.currentTurn === 'white' ? 'Your move' : ''}
+          </p>
+        )}
       </div>
 
       {/* Game Status Messages */}
