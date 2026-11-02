@@ -40,7 +40,7 @@ function Board({ engine }: { engine: ChessEngine }) {
                 return (
                   <div
                     key={`${layer}-${x}-${y}`}
-                    className={`aspect-square flex items-center justify-center text-lg sm:text-xl ${dark ? 'bg-walnut' : 'bg-bone/15'} ${piece?.color === 'white' ? 'text-bone' : 'text-ink'}`}
+                    className={`aspect-square flex items-center justify-center text-lg sm:text-xl ${dark ? 'bg-walnut' : 'bg-bone/15'} ${piece?.color === 'white' ? 'text-white' : 'text-[#120e0b]'}`} style={piece ? { textShadow: piece.color === 'white' ? '0 0 2px #15120F' : '0 0 2px #EDE4D0' } : undefined}
                   >
                     {glyph}
                   </div>

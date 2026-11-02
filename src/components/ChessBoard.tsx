@@ -13,6 +13,9 @@ interface ChessBoardProps {
   onSquareClick: (position: Position) => void;
 }
 
+// Vertical gap between the three layers. Closer than this, the upper board hides the lower one.
+const LAYER_SPACING = 2;
+
 const ChessBoard: React.FC<ChessBoardProps> = ({ gameState, selectedPiece, onSquareClick }) => {
   const boardRef = useRef<THREE.Group>(null);
   const [hoveredSquare, setHoveredSquare] = useState<Position | null>(null);
@@ -59,8 +62,9 @@ const ChessBoard: React.FC<ChessBoardProps> = ({ gameState, selectedPiece, onSqu
     else if (isHovered) color = hoveredColor;
 
     return (
+      <>
       <mesh
-        position={[x - 3.5, layer * 0.2, y - 3.5]}
+        position={[x - 3.5, layer * LAYER_SPACING, y - 3.5]}
         rotation={[-Math.PI / 2, 0, 0]}
         onClick={() => handleSquareClick(position)}
         onPointerEnter={() => setHoveredSquare(position)}
@@ -68,9 +72,16 @@ const ChessBoard: React.FC<ChessBoardProps> = ({ gameState, selectedPiece, onSqu
       >
         <planeGeometry args={[1, 1]} />
         <meshStandardMaterial color={color} />
-        {piece && <ChessPiece piece={piece} />}
       </mesh>
-    );
+      {piece && (
+        // Pieces sit in world space above their square. As children of the
+        // flat, rotated square they lay inside the board and could not be seen.
+        <group position={[x - 3.5, layer * LAYER_SPACING, y - 3.5]}>
+          <ChessPiece piece={piece} onClick={() => handleSquareClick(position)} />
+        </group>
+      )}
+    </>
+  );
   };
 
   const renderLayer = (layer: number) => {
@@ -113,7 +124,7 @@ interface ChessPieceProps {
   piece: ChessPiece;
 }
 
-const ChessPiece: React.FC<ChessPieceProps> = ({ piece }) => {
+const ChessPiece: React.FC<ChessPieceProps & { onClick?: () => void }> = ({ piece, onClick }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   
   // Piece geometry based on type
@@ -141,6 +152,7 @@ const ChessPiece: React.FC<ChessPieceProps> = ({ piece }) => {
       ref={meshRef}
       position={[0, 0.3, 0]}
       rotation={piece.type === 'knight' ? [0, Math.PI / 4, 0] : [0, 0, 0]}
+      onClick={e => { e.stopPropagation(); onClick?.(); }}
     >
       {getPieceGeometry(piece.type)}
       <meshStandardMaterial
