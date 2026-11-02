@@ -36,6 +36,24 @@ export interface EngineSnapshot {
   gameState: GameState;
   enPassantTarget: Position | null;
   castlingRights: CastlingRights;
+  /** Plies since the last capture or pawn move (50/75-move rules). Optional for older snapshots. */
+  halfmoveClock?: number;
+  /** Position keys after every ply, including the starting position. Optional for older snapshots. */
+  positionHistory?: string[];
+  drawReason?: string | null;
+}
+
+/** Everything needed to take back one move. Kept in memory only, not persisted. */
+interface UndoRecord {
+  board: (ChessPiece | null)[][][];
+  currentPlayer: PieceColor;
+  capturedPieces: ChessPiece[];
+  gameState: GameState;
+  enPassantTarget: Position | null;
+  castlingRights: CastlingRights;
+  halfmoveClock: number;
+  positionHistory: string[];
+  drawReason: string | null;
 }
 
 function deepClone<T>(value: T): T {
@@ -49,6 +67,10 @@ export class ChessEngine {
   private capturedPieces: ChessPiece[];
   private gameState: GameState;
   private enPassantTarget: Position | null;
+  private halfmoveClock: number = 0;
+  private positionHistory: string[] = [];
+  private undoStack: UndoRecord[] = [];
+  private drawReason: string | null = null;
   private castlingRights: {
     whiteKingside: boolean;
     whiteQueenside: boolean;
@@ -72,6 +94,7 @@ export class ChessEngine {
       blackQueenside: true
     };
     this.initializeBoard();
+    this.positionHistory = [this.positionKey()];
   }
 
   private createEmptyBoard(): (ChessPiece | null)[][][] {
@@ -584,7 +607,8 @@ export class ChessEngine {
 
     // Check if squares between king and rook are empty
     const startX = side === 'kingside' ? 5 : 1;
-    const endX = side === 'kingside' ? 7 : 3;
+    // Squares strictly between king and rook; the rook's own square (x=7 or x=0) is excluded
+    const endX = side === 'kingside' ? 6 : 3;
 
     for (let x = startX; x <= endX; x++) {
       if (x === position.x) continue; // Skip king's position
@@ -732,6 +756,9 @@ export class ChessEngine {
   }
 
   public makeMove(from: Position, to: Position, promotionPiece?: 'queen' | 'rook' | 'bishop' | 'knight'): boolean {
+    if (this.isGameOver()) {
+      return false;
+    }
     const piece = this.getPieceAt(from);
     if (!piece || piece.color !== this.currentPlayer) {
       return false;
@@ -745,6 +772,9 @@ export class ChessEngine {
     if (!isValidMove) {
       return false;
     }
+
+    // Save the full prior state so undoMove can restore it exactly
+    this.undoStack.push(this.captureUndoRecord());
 
     // Create move record
     const capturedPiece = this.getPieceAt(to);
@@ -791,7 +821,7 @@ export class ChessEngine {
         }
         this.moveHistory.push(move);
         this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-        this.updateGameState();
+        this.finishMove(true); // pawn move always resets the 50/75-move clock
         return true;
       }
 
@@ -840,8 +870,8 @@ export class ChessEngine {
     // Switch turns
     this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
 
-    // Update game state
-    this.updateGameState();
+    // Update clocks, repetition history and game state
+    this.finishMove(piece.type === 'pawn' || capturedPiece !== null);
 
     return true;
   }
@@ -866,76 +896,160 @@ export class ChessEngine {
     }
   }
 
+  /**
+   * Take back the last move. Restores the complete prior state (board, turn,
+   * castling rights, en passant, captures, clocks and repetition history),
+   * so promotions, castling and en passant undo exactly.
+   * Undo history lives in memory: an engine rebuilt from a snapshot can
+   * only undo moves made after it was rebuilt.
+   */
   public undoMove(): boolean {
-    if (this.moveHistory.length === 0) return false;
+    const record = this.undoStack.pop();
+    if (!record) return false;
 
-    const lastMove = this.moveHistory.pop()!;
-    const piece = lastMove.piece;
+    this.moveHistory.pop();
+    this.board = record.board;
+    this.currentPlayer = record.currentPlayer;
+    this.capturedPieces = record.capturedPieces;
+    this.gameState = record.gameState;
+    this.enPassantTarget = record.enPassantTarget;
+    this.castlingRights = record.castlingRights;
+    this.halfmoveClock = record.halfmoveClock;
+    this.positionHistory = record.positionHistory;
+    this.drawReason = record.drawReason;
+    return true;
+  }
 
-    // Restore the piece to its original position
-    this.board[lastMove.from.layer][lastMove.from.y][lastMove.from.x] = piece;
-    this.board[lastMove.to.layer][lastMove.to.y][lastMove.to.x] = null;
-    piece.position = lastMove.from;
-    piece.hasMoved = !lastMove.piece.hasMoved; // Restore original hasMoved state
+  private captureUndoRecord(): UndoRecord {
+    return {
+      board: deepClone(this.board),
+      currentPlayer: this.currentPlayer,
+      capturedPieces: deepClone(this.capturedPieces),
+      gameState: this.gameState,
+      enPassantTarget: this.enPassantTarget ? { ...this.enPassantTarget } : null,
+      castlingRights: { ...this.castlingRights },
+      halfmoveClock: this.halfmoveClock,
+      positionHistory: [...this.positionHistory],
+      drawReason: this.drawReason
+    };
+  }
 
-    // Restore captured piece
-    if (lastMove.capturedPiece) {
-      this.board[lastMove.to.layer][lastMove.to.y][lastMove.to.x] = lastMove.capturedPiece;
-      this.capturedPieces.pop();
-    }
+  /** Called after a move's board changes and the turn has switched. */
+  private finishMove(resetsClock: boolean): void {
+    this.halfmoveClock = resetsClock ? 0 : this.halfmoveClock + 1;
+    this.positionHistory.push(this.positionKey());
+    this.updateGameState();
+  }
 
-    // Handle special moves
-    if (lastMove.isEnPassant) {
-      // Restore the captured pawn
-      const capturedPawnPos = { x: lastMove.to.x, y: lastMove.from.y, layer: lastMove.from.layer };
-      this.board[capturedPawnPos.layer][capturedPawnPos.y][capturedPawnPos.x] = lastMove.capturedPiece || null;
-    }
-
-    if (lastMove.isCastling) {
-      // Restore rook position
-      const rookFromX = lastMove.to.x > lastMove.from.x ? 5 : 3;
-      const rookToX = lastMove.to.x > lastMove.from.x ? 7 : 0;
-      const rookFrom = { x: rookFromX, y: lastMove.from.y, layer: lastMove.from.layer };
-      const rookTo = { x: rookToX, y: lastMove.from.y, layer: lastMove.from.layer };
-      const rook = this.getPieceAt(rookFrom);
-
-      if (rook) {
-        this.board[rookTo.layer][rookTo.y][rookTo.x] = rook;
-        this.board[rookFrom.layer][rookFrom.y][rookFrom.x] = null;
-        rook.position = rookTo;
-        rook.hasMoved = false;
+  /**
+   * Identifies a position for repetition counting: piece placement, side to move,
+   * castling rights and en passant target. Clocks are excluded, as in FIDE rules.
+   */
+  private positionKey(): string {
+    const codes: Record<string, string> = {
+      pawn: 'p', knight: 'n', bishop: 'b', rook: 'r', queen: 'q', king: 'k'
+    };
+    let key = '';
+    for (let layer = 0; layer < 3; layer++) {
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const piece = this.board[layer][y][x];
+          if (!piece) {
+            key += '.';
+          } else {
+            const code = codes[piece.type] ?? '?';
+            key += piece.color === 'white' ? code.toUpperCase() : code;
+          }
+        }
       }
     }
+    const c = this.castlingRights;
+    const castling = `${c.whiteKingside ? 'K' : ''}${c.whiteQueenside ? 'Q' : ''}${c.blackKingside ? 'k' : ''}${c.blackQueenside ? 'q' : ''}`;
+    const ep = this.enPassantTarget
+      ? `${this.enPassantTarget.x},${this.enPassantTarget.y},${this.enPassantTarget.layer}`
+      : '-';
+    return `${key}|${this.currentPlayer}|${castling || '-'}|${ep}`;
+  }
 
-    // Switch turns back
-    this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+  private countPositionOccurrences(key: string): number {
+    let count = 0;
+    for (const k of this.positionHistory) {
+      if (k === key) count++;
+    }
+    return count;
+  }
 
-    // Update game state
-    this.updateGameState();
+  public isGameOver(): boolean {
+    return (
+      this.gameState === GameState.WHITE_WINS ||
+      this.gameState === GameState.BLACK_WINS ||
+      this.gameState === GameState.STALEMATE ||
+      this.gameState === GameState.DRAW
+    );
+  }
 
+  public getDrawReason(): string | null {
+    return this.drawReason;
+  }
+
+  public getHalfmoveClock(): number {
+    return this.halfmoveClock;
+  }
+
+  /**
+   * Draws a player may claim: threefold repetition (3 occurrences) and
+   * the fifty-move rule (100 plies without a capture or pawn move).
+   * Returns null when no claim is currently valid.
+   */
+  public getClaimableDraw(): 'threefold-repetition' | 'fifty-move-rule' | null {
+    if (this.isGameOver()) return null;
+    if (this.countPositionOccurrences(this.positionKey()) >= 3) return 'threefold-repetition';
+    if (this.halfmoveClock >= 100) return 'fifty-move-rule';
+    return null;
+  }
+
+  /** Claim a draw that getClaimableDraw() reports as available. */
+  public claimDraw(): boolean {
+    const reason = this.getClaimableDraw();
+    if (!reason) return false;
+    this.gameState = GameState.DRAW;
+    this.drawReason = reason;
     return true;
   }
 
   private updateGameState(): void {
-    // Check for checkmate
+    this.drawReason = null;
+
+    // Checkmate and stalemate take precedence over every draw rule
     if (this.isCheckmate(this.currentPlayer)) {
       this.gameState = this.currentPlayer === 'white' ? GameState.BLACK_WINS : GameState.WHITE_WINS;
       return;
     }
 
-    // Check for stalemate
     if (this.isStalemate(this.currentPlayer)) {
       this.gameState = GameState.STALEMATE;
       return;
     }
 
-    // Check for insufficient material
     if (this.isInsufficientMaterial()) {
       this.gameState = GameState.DRAW;
+      this.drawReason = 'insufficient-material';
       return;
     }
 
-    // Check for check
+    // Automatic draws, applied without a claim
+    if (this.countPositionOccurrences(this.positionKey()) >= 5) {
+      this.gameState = GameState.DRAW;
+      this.drawReason = 'fivefold-repetition';
+      return;
+    }
+
+    if (this.halfmoveClock >= 150) {
+      this.gameState = GameState.DRAW;
+      this.drawReason = 'seventy-five-move-rule';
+      return;
+    }
+
     if (this.isKingInCheck(this.currentPlayer)) {
       this.gameState = GameState.IN_CHECK;
     } else {
@@ -1036,7 +1150,10 @@ export class ChessEngine {
       capturedPieces: deepClone(this.capturedPieces),
       gameState: this.gameState,
       enPassantTarget: this.enPassantTarget ? { ...this.enPassantTarget } : null,
-      castlingRights: { ...this.castlingRights }
+      castlingRights: { ...this.castlingRights },
+      halfmoveClock: this.halfmoveClock,
+      positionHistory: [...this.positionHistory],
+      drawReason: this.drawReason
     };
   }
 
@@ -1064,6 +1181,12 @@ export class ChessEngine {
     engine.gameState = snapshot.gameState;
     engine.enPassantTarget = snapshot.enPassantTarget ? { ...snapshot.enPassantTarget } : null;
     engine.castlingRights = { ...snapshot.castlingRights };
+    engine.halfmoveClock = snapshot.halfmoveClock ?? 0;
+    engine.positionHistory = Array.isArray(snapshot.positionHistory) && snapshot.positionHistory.length > 0
+      ? [...snapshot.positionHistory]
+      : [engine.positionKey()];
+    engine.drawReason = snapshot.drawReason ?? null;
+    engine.undoStack = [];
     return engine;
   }
 
