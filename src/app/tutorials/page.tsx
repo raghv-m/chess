@@ -16,7 +16,7 @@ import {
 
 export default function TutorialsPage() {
   const [selectedCategory, setSelectedCategory] = useState('basics');
-  const [selectedLesson, setSelectedLesson] = useState(null);
+  const [selectedLesson, setSelectedLesson] = useState<any>(null);
 
   const categories = [
     { id: 'basics', name: 'Chess Basics', icon: FaBook, color: 'from-blue-500 to-blue-600' },
@@ -309,7 +309,7 @@ export default function TutorialsPage() {
           </motion.div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {lessons[selectedCategory].map((lesson, index) => (
+            {lessons[selectedCategory as keyof typeof lessons].map((lesson, index) => (
               <motion.div
                 key={lesson.id}
                 initial={{ opacity: 0, y: 20 }}
