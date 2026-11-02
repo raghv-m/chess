@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChessEngine } from '@/lib/chess/engine';
 import { ChessAI } from '@/lib/ai/ChessAI';
+import { moveListString } from '@/lib/chess/notation';
 import type { AIWorkerResponse } from '@/lib/ai/ai.worker';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
@@ -141,6 +142,12 @@ const ChessGame: React.FC<ChessGameProps> = ({
       setIsGameOver(true);
       setResult({ winner: 'draw', reason: 'draw' });
     }
+  };
+
+  const handleClaimDraw = () => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    if (eng.claimDraw()) syncFromEngine(eng);
   };
 
   // The computer answers after a short pause so the human can see the move land.
@@ -359,8 +366,8 @@ const ChessGame: React.FC<ChessGameProps> = ({
         <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-sm p-5 rounded-lg text-white z-10 text-center">
           <p className="text-lg font-bold">
             {result.winner === 'draw'
-              ? `Game drawn (${result.reason.replace(/_/g, ' ')})`
-              : `${result.winner === 'white' ? 'White' : 'Black'} wins (${result.reason.replace(/_/g, ' ')})`}
+              ? `Game drawn (${result.reason.replace(/[_-]/g, ' ')})`
+              : `${result.winner === 'white' ? 'White' : 'Black'} wins (${result.reason.replace(/[_-]/g, ' ')})`}
           </p>
         </div>
       )}
@@ -386,7 +393,20 @@ const ChessGame: React.FC<ChessGameProps> = ({
           >
             Draw
           </button>
+          {!isGameOver && engineRef.current?.getClaimableDraw() && (
+            <button
+              onClick={handleClaimDraw}
+              className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm transition-colors"
+            >
+              Claim draw
+            </button>
+          )}
         </div>
+        {engineRef.current && engineRef.current.getMoveHistory().length > 0 && (
+          <p className="mt-3 max-w-xs break-words text-xs text-gray-300 font-mono">
+            {moveListString(engineRef.current)}
+          </p>
+        )}
       </div>
 
       {/* 3D Chess Board */}
