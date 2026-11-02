@@ -318,7 +318,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
   return (
     <div className="relative h-screen">
       {/* Game Info Overlay */}
-      <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
+      <div className="absolute top-4 left-4 bg-walnut/90 border border-brass/30 backdrop-blur-sm p-4 rounded-lg text-bone z-10">
         <h2 className="text-xl font-bold mb-2">
           {gameMode.charAt(0).toUpperCase() + gameMode.slice(1)} Game
         </h2>
@@ -363,7 +363,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
 
       {/* Final result banner */}
       {result && (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-sm p-5 rounded-lg text-white z-10 text-center">
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-walnut/95 border border-brass/30 p-5 rounded-lg text-bone z-10 text-center">
           <p className="text-lg font-bold">
             {result.winner === 'draw'
               ? `Game drawn (${result.reason.replace(/[_-]/g, ' ')})`
@@ -373,37 +373,37 @@ const ChessGame: React.FC<ChessGameProps> = ({
       )}
 
       {/* Game Controls */}
-      <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
+      <div className="absolute top-4 right-4 bg-walnut/90 border border-brass/30 backdrop-blur-sm p-4 rounded-lg text-bone z-10">
         <div className="flex space-x-2">
           <button
             onClick={handleUndoMove}
-            className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition-colors"
+            className="bg-brass hover:bg-brass-light text-ink font-semibold px-3 py-1 rounded text-sm transition-colors"
           >
             Undo
           </button>
           <button
             onClick={handleResign}
-            className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors"
+            className="bg-oxblood hover:bg-oxblood/80 text-bone px-3 py-1 rounded text-sm transition-colors"
           >
             Resign
           </button>
           <button
             onClick={handleOfferDraw}
-            className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm transition-colors"
+            className="bg-brass/70 hover:bg-brass text-ink font-semibold px-3 py-1 rounded text-sm transition-colors"
           >
             Draw
           </button>
           {!isGameOver && engineRef.current?.getClaimableDraw() && (
             <button
               onClick={handleClaimDraw}
-              className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm transition-colors"
+              className="bg-brass/70 hover:bg-brass text-ink font-semibold px-3 py-1 rounded text-sm transition-colors"
             >
               Claim draw
             </button>
           )}
         </div>
         {engineRef.current && engineRef.current.getMoveHistory().length > 0 && (
-          <p className="mt-3 max-w-xs break-words text-xs text-gray-300 font-mono">
+          <p className="mt-3 max-w-xs break-words text-xs text-bone/70 font-mono">
             {moveListString(engineRef.current)}
           </p>
         )}
@@ -413,7 +413,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
       <div className="w-full h-full">
         <Canvas
           camera={{ position: [0, 5, 8], fov: 50 }}
-          style={{ background: 'linear-gradient(to bottom, #1a202c, #2d3748)' }}
+          style={{ background: '#15120F' }}
         >
           <ambientLight intensity={0.6} />
           <directionalLight position={[10, 10, 5]} intensity={1} />
@@ -440,14 +440,14 @@ const ChessGame: React.FC<ChessGameProps> = ({
       {/* Promotion picker */}
       {promotionPending && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
-          <div className="bg-gray-900 p-6 rounded-lg text-white text-center">
+          <div className="bg-walnut border border-brass/30 p-6 rounded-lg text-bone text-center">
             <h3 className="text-lg font-semibold mb-4">Promote pawn to</h3>
             <div className="flex space-x-3">
               {(['queen', 'rook', 'bishop', 'knight'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => choosePromotion(type)}
-                  className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded capitalize transition-colors"
+                  className="bg-brass/20 hover:bg-brass/40 text-bone px-4 py-2 rounded capitalize transition-colors"
                 >
                   {type}
                 </button>
@@ -458,7 +458,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
       )}
 
       {/* Captured Pieces Display */}
-      <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
+      <div className="absolute bottom-4 left-4 bg-walnut/90 border border-brass/30 backdrop-blur-sm p-4 rounded-lg text-bone z-10">
         <h3 className="text-sm font-semibold mb-2">Captured Pieces</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
