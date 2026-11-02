@@ -16,6 +16,7 @@ import type { AIWorkerResponse } from '@/lib/ai/ai.worker';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import GameInfo from './GameInfo';
+import LayerBoard from './LayerBoard';
 
 interface ChessGameProps {
   gameMode: 'singleplayer' | 'multiplayer' | 'practice';
@@ -477,6 +478,21 @@ const ChessGame: React.FC<ChessGameProps> = ({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Playable board: flat, clickable view of all three layers */}
+      {gameState && engineRef.current && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-walnut/90 border border-brass/30 backdrop-blur-sm p-3 rounded-lg">
+          <LayerBoard
+            board={gameState.board}
+            selected={selectedPiece as Position | null}
+            targets={selectedPiece && engineRef.current
+              ? engineRef.current.getValidMoves({ ...selectedPiece, layer: selectedPiece.layer as LayerIndex }) as Position[]
+              : []}
+            onSquareClick={handleSquareClick}
+            disabled={isGameOver || aiThinking || !!promotionPending}
+          />
         </div>
       )}
 
