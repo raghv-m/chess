@@ -249,13 +249,6 @@ export default function AboutPage() {
                   <skill.icon className="text-2xl text-brass-light mr-3" />
                   <h3 className="text-lg font-semibold text-bone">{skill.name}</h3>
                 </div>
-                <div className="w-full bg-walnut/80 rounded-full h-2">
-                  <div 
-                    className="bg-brass h-2 rounded-full transition-all duration-1000"
-                    style={{ width: `${skill.level}%` }}
-                  ></div>
-                </div>
-                <p className="text-bone/75 text-sm mt-2">{skill.level}% proficiency</p>
               </motion.div>
             ))}
           </div>

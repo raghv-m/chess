@@ -19,8 +19,9 @@ export default function LeaderboardPage() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedTimeframe, setSelectedTimeframe] = useState('all-time');
 
-  // Sample data only: accounts and real ratings are not built yet.
-  const leaderboardData = [
+  // No real data yet: accounts and rated matches are not built. Dashes are placeholders, not statistics.
+  // Invented sample players removed. Rows come from completed rated matches once accounts exist.
+  const sampleLeaderboard = [
     {
       id: 1,
       username: 'ChessMaster2024',
@@ -152,6 +153,7 @@ export default function LeaderboardPage() {
       badge: 'fire'
     }
   ];
+  const leaderboardData: typeof sampleLeaderboard = [];
 
   const getBadgeIcon = (badge: string) => {
     switch (badge) {
@@ -227,10 +229,10 @@ export default function LeaderboardPage() {
         <div className="container mx-auto">
           <div className="grid md:grid-cols-4 gap-6">
             {[
-              { icon: FaUsers, label: 'Total Players', value: 'Sample', color: 'text-brass-light' },
-              { icon: FaTrophy, label: 'Active Games', value: 'Sample', color: 'text-brass' },
-              { icon: FaChartLine, label: 'Avg Rating', value: '1,250', color: 'text-green-400' },
-              { icon: FaFire, label: 'Games Today', value: '567', color: 'text-orange-400' }
+              { icon: FaUsers, label: 'Total Players', value: '—', color: 'text-brass-light' },
+              { icon: FaTrophy, label: 'Active Games', value: '—', color: 'text-brass' },
+              { icon: FaChartLine, label: 'Avg Rating', value: '—', color: 'text-green-400' },
+              { icon: FaFire, label: 'Games Today', value: '—', color: 'text-orange-400' }
             ].map((stat, index) => (
               <motion.div
                 key={index}
@@ -313,6 +315,11 @@ export default function LeaderboardPage() {
 
             {/* Table Body */}
             <div className="divide-y divide-white/10">
+              {leaderboardData.length === 0 && (
+                <div className="px-6 py-10 text-center text-bone/70">
+                  No rated players yet. Rankings appear once accounts and completed rated matches exist.
+                </div>
+              )}
               {leaderboardData.map((player, index) => (
                 <motion.div
                   key={player.id}
@@ -393,15 +400,15 @@ export default function LeaderboardPage() {
           >
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-bone mb-4">Your Statistics</h2>
-              <p className="text-bone/75">Track your progress and achievements</p>
+              <p className="text-bone/75">Your statistics appear here once accounts and rated matches exist.</p>
             </div>
             
             <div className="grid md:grid-cols-4 gap-6">
               {[
-                { label: 'Current Rating', value: '1200', change: '+50', color: 'text-green-400' },
-                { label: 'Games Played', value: '45', change: '', color: 'text-bone' },
-                { label: 'Win Rate', value: '65%', change: '+5%', color: 'text-brass-light' },
-                { label: 'Best Streak', value: '8', change: '', color: 'text-orange-400' }
+                { label: 'Current Rating', value: '—', change: '', color: 'text-bone' },
+                { label: 'Games Played', value: '—', change: '', color: 'text-bone' },
+                { label: 'Win Rate', value: '—', change: '', color: 'text-brass-light' },
+                { label: 'Best Streak', value: '—', change: '', color: 'text-orange-400' }
               ].map((stat, index) => (
                 <div key={index} className="text-center">
                   <div className={`text-2xl font-bold ${stat.color} mb-1`}>{stat.value}</div>
