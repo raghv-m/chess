@@ -3,6 +3,7 @@ import { DatabaseService } from '../lib/auth/types';
 
 // Mock database service for testing
 const mockDb: DatabaseService = {
+  updateMatchResult: async () => {},
   getUserStats: async () => ({
     rating: 1200,
     wins: 0,
@@ -22,7 +23,7 @@ async function testGame() {
 
   // Test AI mode
   console.log('Testing AI mode...');
-  await gameManager.initializeGameMode('ai', {
+  await (gameManager as any).initializeGameMode('ai', {
     difficulty: 'intermediate'
   });
   

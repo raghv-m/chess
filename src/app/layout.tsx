@@ -1,18 +1,19 @@
-'use client';
-
 import './globals.css';
-import { Inter } from 'next/font/google';
+import type { Metadata } from 'next';
+import { Fraunces, Hanken_Grotesk } from 'next/font/google';
 
-const inter = Inter({ subsets: ['latin'] });
+const display = Fraunces({ subsets: ['latin'], variable: '--font-display', axes: ['opsz'] });
+const body = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-body' });
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const metadata: Metadata = {
+  title: '3D Chess',
+  description: 'Play three-layer 3D chess against the computer or friends online.',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className={`${display.variable} ${body.variable}`}>
+      <body className="font-[var(--font-body)] bg-ink text-bone antialiased">{children}</body>
     </html>
   );
 }
