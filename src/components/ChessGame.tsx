@@ -5,11 +5,12 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
 import ChessBoard from './ChessBoard';
 import { GameState, Position, ChessPiece, GameResult } from '@/types';
-import { LayerIndex, GameState as EngineGameState } from '@/types/index';
+import { LayerIndex, GameState as EngineGameState, Position as EnginePosition } from '@/types/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChessEngine } from '@/lib/chess/engine';
 import { ChessAI } from '@/lib/ai/ChessAI';
+import type { AIWorkerResponse } from '@/lib/ai/ai.worker';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import GameInfo from './GameInfo';
@@ -48,6 +49,21 @@ const ChessGame: React.FC<ChessGameProps> = ({
     [difficulty, vsComputer]
   );
   const [aiThinking, setAiThinking] = useState(false);
+  const [promotionPending, setPromotionPending] = useState<{ from: Position; to: Position } | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const requestIdRef = useRef(0);
+
+  // Search runs in a Web Worker so the expert level never freezes the board.
+  // Falls back to the main thread where workers are unavailable.
+  useEffect(() => {
+    if (typeof Worker === 'undefined') return;
+    const worker = new Worker(new URL('../lib/ai/ai.worker.ts', import.meta.url));
+    workerRef.current = worker;
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, []);
   // Handlers read the engine through a ref so timers never see a stale copy.
   const engineRef = useRef<ChessEngine | null>(null);
 
@@ -132,20 +148,60 @@ const ChessGame: React.FC<ChessGameProps> = ({
     setAiThinking(true);
     setTimeout(() => {
       const eng = engineRef.current;
-      if (eng && eng.getCurrentPlayer() === 'black' && !isOverState(eng)) {
-        const reply = ai.chooseMove(eng);
-        if (reply) {
-          eng.makeMove(reply.from, reply.to);
+      const finish = (move: { from: Position; to: Position } | null) => {
+        const current = engineRef.current;
+        if (current && move) {
+          current.makeMove(move.from as EnginePosition, move.to as EnginePosition);
         }
-        syncFromEngine(eng);
+        if (current) syncFromEngine(current);
+        setAiThinking(false);
+      };
+
+      if (!eng || eng.getCurrentPlayer() !== 'black' || isOverState(eng)) {
+        setAiThinking(false);
+        return;
       }
-      setAiThinking(false);
+
+      const worker = workerRef.current;
+      if (!worker) {
+        finish(ai.chooseMove(eng));
+        return;
+      }
+
+      const id = ++requestIdRef.current;
+      const onMessage = (event: MessageEvent<AIWorkerResponse>) => {
+        if (event.data.id !== id) return;
+        worker.removeEventListener('message', onMessage);
+        if (event.data.error) {
+          finish(ai.chooseMove(eng));
+          return;
+        }
+        finish(event.data.move as { from: Position; to: Position } | null);
+      };
+      worker.addEventListener('message', onMessage);
+      const level = (vsComputer ? difficulty : 'intermediate') as 'beginner' | 'intermediate' | 'expert';
+      worker.postMessage({ id, snapshot: eng.toSnapshot(), difficulty: level });
     }, 300);
+  };
+
+  const choosePromotion = (type: 'queen' | 'rook' | 'bishop' | 'knight') => {
+    const eng = engineRef.current;
+    const pending = promotionPending;
+    if (!eng || !pending) return;
+    setPromotionPending(null);
+    setSelectedPiece(null);
+    const success = eng.makeMove(pending.from as EnginePosition, pending.to as EnginePosition, type);
+    if (success) {
+      syncFromEngine(eng);
+      if (vsComputer && !isOverState(eng)) {
+        scheduleComputerMove();
+      }
+    }
   };
 
   const handleSquareClick = async (position: Position) => {
     const eng = engineRef.current;
-    if (!gameState || loading || !eng || isGameOver) return;
+    if (!gameState || loading || !eng || isGameOver || promotionPending) return;
     // While the computer is thinking, or on its turn, the board is not yours.
     if (vsComputer && (aiThinking || eng.getCurrentPlayer() !== 'white')) return;
 
@@ -156,10 +212,23 @@ const ChessGame: React.FC<ChessGameProps> = ({
           setSelectedPiece(position);
         }
       } else {
-        const success = eng.makeMove(
-          { ...selectedPiece, layer: selectedPiece.layer as LayerIndex },
-          { ...position, layer: position.layer as LayerIndex }
-        );
+        const from = { ...selectedPiece, layer: selectedPiece.layer as LayerIndex };
+        const to = { ...position, layer: position.layer as LayerIndex };
+
+        // Pawn reaching the last rank: ask which piece to promote to first.
+        const mover = eng.getPieceAt(from);
+        const lastRank = mover?.color === 'white' ? 7 : 0;
+        const isPromotion =
+          mover?.type === 'pawn' &&
+          to.y === lastRank &&
+          eng.getValidMoves(from).some(m => m.x === to.x && m.y === to.y && m.layer === to.layer);
+        if (isPromotion) {
+          setPromotionPending({ from, to });
+          setSelectedPiece(null);
+          return;
+        }
+
+        const success = eng.makeMove(from, to);
         if (success) {
           syncFromEngine(eng);
           if (vsComputer && !isOverState(eng)) {
@@ -347,6 +416,26 @@ const ChessGame: React.FC<ChessGameProps> = ({
           <Environment preset="sunset" />
         </Canvas>
       </div>
+
+      {/* Promotion picker */}
+      {promotionPending && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
+          <div className="bg-gray-900 p-6 rounded-lg text-white text-center">
+            <h3 className="text-lg font-semibold mb-4">Promote pawn to</h3>
+            <div className="flex space-x-3">
+              {(['queen', 'rook', 'bishop', 'knight'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => choosePromotion(type)}
+                  className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded capitalize transition-colors"
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Captured Pieces Display */}
       <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
