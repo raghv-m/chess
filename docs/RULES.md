@@ -15,8 +15,8 @@ the code is wrong until one of them is changed on purpose.
 
 - Layer 1: white pawns on rank 2, black pawns on rank 7, and the back ranks
   (rooks, knights, bishops, queen, king) on ranks 1 and 8.
-- Layer 2 (middle): white knight and bishop on d4 and f4 squares, black knight
-  and bishop on d5 and f5 (see `initializeMiddleLayer`).
+- Layer 2 (middle): white knight on c4 and bishop on f4; black knight on c5 and
+  bishop on f5 (see `initializeMiddleLayer`).
 - Layer 3 (top): empty. Promoted pieces can be placed here.
 - White moves first.
 
@@ -52,8 +52,8 @@ Captures happen only within a layer (normal moves), never by a layer move.
 ## Check and attack
 
 - A square is attacked if an opponent piece could move to it by any rule above,
-  on any layer. A layer move only reaches an empty square, so it can attack a
-  square it could move to, but it can never capture by a layer move.
+  on any layer. A layer move can attack an empty square on the adjacent layer,
+  but it can never capture, because it only moves onto empty squares.
 - A king is in check when its square is attacked.
 - A move is illegal if it leaves the mover's own king in check.
 
