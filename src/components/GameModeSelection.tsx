@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { FaGithub, FaLinkedin, FaEnvelope, FaCode, FaGamepad, FaTrophy } from 'react-icons/fa';
-import { socketClient } from '@/lib/socket';
+import PlayFriendPanel from './PlayFriendPanel';
 
 interface GameMode {
   id: string;
@@ -27,7 +27,7 @@ const gameModes: GameMode[] = [
   {
     id: 'multiplayer',
     title: 'Multiplayer',
-    description: 'Play against other players from around the world in real-time matches',
+    description: 'Play a friend online with a shareable game link — real-time moves, no account needed',
     icon: <FaTrophy className="w-8 h-8" />,
     difficulties: ['Casual', 'Ranked', 'Tournament'],
     color: 'from-purple-500 to-purple-600'
@@ -45,38 +45,6 @@ const gameModes: GameMode[] = [
 export default function GameModeSelection() {
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
-  const [activeUsers, setActiveUsers] = useState<number>(0);
-  const [isConnecting, setIsConnecting] = useState(true);
-
-  useEffect(() => {
-    // Connect to WebSocket and set up callbacks
-    socketClient.setCallbacks({
-      onMove: () => {},
-      onGameEnd: () => {},
-      onError: (error) => {
-        console.error('Socket error:', error);
-      },
-      onActiveUsersUpdate: (count) => {
-        setActiveUsers(count);
-        setIsConnecting(false);
-      }
-    }, 'lobby');
-
-    socketClient.connect();
-
-    // Request active users count periodically
-    const interval = setInterval(() => {
-      socketClient.requestActiveUsers();
-    }, 10000); // Update every 10 seconds
-
-    // Initial request
-    socketClient.requestActiveUsers();
-
-    return () => {
-      clearInterval(interval);
-      socketClient.disconnect();
-    };
-  }, []);
 
   const container = {
     hidden: { opacity: 0 },
@@ -99,7 +67,7 @@ export default function GameModeSelection() {
       <div className="relative">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 animate-gradient-x"></div>
         <header className="relative pt-16 pb-12 text-center">
-          <motion.h1 
+          <motion.h1
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="text-7xl font-extrabold mb-6 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent"
@@ -114,24 +82,14 @@ export default function GameModeSelection() {
           >
             Experience chess in a whole new dimension
           </motion.p>
-          <motion.div
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="mt-4 text-green-400 font-semibold"
+            className="mt-4 text-gray-400"
           >
-            {isConnecting ? (
-              <span className="inline-flex items-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Connecting...
-              </span>
-            ) : (
-              <span>{activeUsers} players online now</span>
-            )}
-          </motion.div>
+            Local play · AI opponents · Online games with a shareable link
+          </motion.p>
         </header>
       </div>
 
@@ -152,7 +110,10 @@ export default function GameModeSelection() {
               className={`relative h-full transform transition-all duration-300 ${
                 selectedMode?.id === mode.id ? 'ring-2 ring-white' : ''
               }`}
-              onClick={() => setSelectedMode(mode)}
+              onClick={() => {
+                setSelectedMode(mode);
+                setSelectedDifficulty(null);
+              }}
             >
               <div className="h-full bg-white/5 backdrop-blur-sm rounded-xl p-8 border border-white/10 hover:border-white/20 transition-all cursor-pointer group">
                 <div className="flex flex-col h-full">
@@ -170,8 +131,19 @@ export default function GameModeSelection() {
           ))}
         </motion.div>
 
+        {/* Multiplayer: create or join a link-based game */}
+        {selectedMode?.id === 'multiplayer' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-16"
+          >
+            <PlayFriendPanel />
+          </motion.div>
+        )}
+
         {/* Difficulty Selection with enhanced animations */}
-        {selectedMode && (
+        {selectedMode && selectedMode.id !== 'multiplayer' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -202,7 +174,7 @@ export default function GameModeSelection() {
         )}
 
         {/* Start Game Button with enhanced animation */}
-        {selectedMode && selectedDifficulty && (
+        {selectedMode && selectedMode.id !== 'multiplayer' && selectedDifficulty && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -279,8 +251,8 @@ export default function GameModeSelection() {
               >
                 <h3 className="text-2xl font-bold mb-6 text-blue-400">Our Vision</h3>
                 <p className="text-gray-300 leading-relaxed mb-6">
-                  3D Chess reimagines the classic game of strategy in a stunning three-dimensional space. 
-                  We've combined cutting-edge web technologies with timeless gameplay to create an 
+                  3D Chess reimagines the classic game of strategy in a stunning three-dimensional space.
+                  We've combined cutting-edge web technologies with timeless gameplay to create an
                   immersive experience that challenges players to think in new dimensions.
                 </p>
                 <div className="flex flex-wrap gap-3">
@@ -402,4 +374,4 @@ export default function GameModeSelection() {
       </footer>
     </div>
   );
-} 
+}

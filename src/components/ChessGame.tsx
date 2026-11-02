@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
 import ChessBoard from './ChessBoard';
 import { GameState, Position, ChessPiece, GameResult } from '@/types';
-import { LayerIndex } from '@/types/index';
+import { LayerIndex, GameState as EngineGameState } from '@/types/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { ChessEngine } from '@/lib/chess/engine';
@@ -21,8 +21,8 @@ interface ChessGameProps {
   analysisMode?: boolean;
 }
 
-const ChessGame: React.FC<ChessGameProps> = ({ 
-  gameMode, 
+const ChessGame: React.FC<ChessGameProps> = ({
+  gameMode,
   difficulty,
   tutorialMode,
   puzzleMode,
@@ -45,11 +45,11 @@ const ChessGame: React.FC<ChessGameProps> = ({
       try {
         const chessEngine = new ChessEngine();
         setEngine(chessEngine);
-        
+
         // Get initial game state
         const board = chessEngine.getBoard();
         const currentTurn = 'white'; // Engine starts with white
-        
+
         const initialState: GameState = {
           board,
           currentTurn,
@@ -69,7 +69,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
             push: () => {}
           }
         };
-        
+
         setGameState(initialState);
         setLoading(false);
       } catch (error) {
@@ -82,7 +82,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
   }, [gameMode, difficulty, tutorialMode, puzzleMode, analysisMode]);
 
   const handleSquareClick = async (position: Position) => {
-    if (!gameState || loading || !engine) return;
+    if (!gameState || loading || !engine || isGameOver) return;
 
     try {
       if (!selectedPiece) {
@@ -91,20 +91,39 @@ const ChessGame: React.FC<ChessGameProps> = ({
           setSelectedPiece(position);
         }
       } else {
-        const success = engine.makeMove(selectedPiece, position);
+        const success = engine.makeMove(
+          { ...selectedPiece, layer: selectedPiece.layer as LayerIndex },
+          { ...position, layer: position.layer as LayerIndex }
+        );
         if (success) {
           // Update game state
           const newBoard = engine.getBoard();
+          const engineState = engine.getGameState();
           const newGameState: GameState = {
             ...gameState,
             board: newBoard,
             currentTurn: gameState.currentTurn === 'white' ? 'black' : 'white',
-            isCheck: engine.getGameState() === 'IN_CHECK',
-            isCheckmate: engine.getGameState() === 'WHITE_WINS' || engine.getGameState() === 'BLACK_WINS',
-            isStalemate: engine.getGameState() === 'STALEMATE'
+            isCheck: engineState === EngineGameState.IN_CHECK,
+            isCheckmate: engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS,
+            isStalemate: engineState === EngineGameState.STALEMATE
           };
           setGameState(newGameState);
           setSelectedPiece(null);
+
+          // Terminal states end the local game for real
+          if (engineState === EngineGameState.WHITE_WINS || engineState === EngineGameState.BLACK_WINS) {
+            setIsGameOver(true);
+            setResult({
+              winner: engineState === EngineGameState.WHITE_WINS ? 'white' : 'black',
+              reason: 'checkmate'
+            });
+          } else if (engineState === EngineGameState.STALEMATE) {
+            setIsGameOver(true);
+            setResult({ winner: 'draw', reason: 'stalemate' });
+          } else if (engineState === EngineGameState.DRAW) {
+            setIsGameOver(true);
+            setResult({ winner: 'draw', reason: 'draw' });
+          }
         }
       }
     } catch (error) {
@@ -128,16 +147,21 @@ const ChessGame: React.FC<ChessGameProps> = ({
     }
   };
 
+  // Local resign: the side to move concedes, the opponent wins.
+  // (Online resign lives in OnlineChessGame and goes through the API.)
   const handleResign = () => {
-    if (gameMode === 'multiplayer') {
-      console.log('Resign requested');
-    }
+    if (isGameOver || !gameState) return;
+    const winner = gameState.currentTurn === 'white' ? 'black' : 'white';
+    setResult({ winner, reason: 'resignation' });
+    setIsGameOver(true);
   };
 
+  // Local draw: both sides are the same person at one screen, so the
+  // Draw button agrees the game drawn immediately.
   const handleOfferDraw = () => {
-    if (gameMode === 'multiplayer') {
-      console.log('Draw offer requested');
-    }
+    if (isGameOver) return;
+    setResult({ winner: 'draw', reason: 'draw' });
+    setIsGameOver(true);
   };
 
   const renderCapturedPieces = (pieces: ChessPiece[], color: 'white' | 'black') => (
@@ -145,7 +169,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
       {pieces.map((piece, index) => (
         <div
           key={index}
-          className={`w-8 h-8 flex items-center justify-center rounded-full 
+          className={`w-8 h-8 flex items-center justify-center rounded-full
             ${color === 'white' ? 'bg-white text-black' : 'bg-gray-800 text-white'}`}
         >
           {piece.type.charAt(0).toUpperCase()}
@@ -214,6 +238,17 @@ const ChessGame: React.FC<ChessGameProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Final result banner */}
+      {result && (
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-sm p-5 rounded-lg text-white z-10 text-center">
+          <p className="text-lg font-bold">
+            {result.winner === 'draw'
+              ? `Game drawn (${result.reason.replace(/_/g, ' ')})`
+              : `${result.winner === 'white' ? 'White' : 'Black'} wins (${result.reason.replace(/_/g, ' ')})`}
+          </p>
+        </div>
+      )}
+
       {/* Game Controls */}
       <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm p-4 rounded-lg text-white z-10">
         <div className="flex space-x-2">
@@ -247,13 +282,13 @@ const ChessGame: React.FC<ChessGameProps> = ({
           <ambientLight intensity={0.6} />
           <directionalLight position={[10, 10, 5]} intensity={1} />
           <pointLight position={[-10, -10, -5]} intensity={0.5} />
-          
+
           <ChessBoard
             gameState={gameState}
             selectedPiece={selectedPiece}
             onSquareClick={handleSquareClick}
           />
-          
+
           <OrbitControls
             enablePan={true}
             enableZoom={true}
@@ -261,7 +296,7 @@ const ChessGame: React.FC<ChessGameProps> = ({
             minDistance={5}
             maxDistance={20}
           />
-          
+
           <Environment preset="sunset" />
         </Canvas>
       </div>
@@ -284,4 +319,4 @@ const ChessGame: React.FC<ChessGameProps> = ({
   );
 };
 
-export default ChessGame; 
+export default ChessGame;

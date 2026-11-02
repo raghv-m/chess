@@ -9,7 +9,6 @@ import type {
   GameCallbacks,
   PieceColor
 } from '@/types';
-import { socketClient } from '../socket';
 import { ChessAI } from '../ai/ChessAI';
 
 interface PieceInitData extends ChessPiece {
@@ -20,12 +19,20 @@ interface PieceInitData extends ChessPiece {
   id: string;
 }
 
+/**
+ * GameModeManager — local and AI game state.
+ *
+ * Online multiplayer used to run through a socket client here. That
+ * transport was removed: online games now live in the server-authoritative
+ * Supabase flow (see src/lib/server/gameService.ts and
+ * src/components/OnlineChessGame.tsx). This class keeps the 'multiplayer'
+ * mode label for compatibility but only manages local state.
+ */
 export class GameModeManager {
   private gameState: GameState;
   private mode: 'local' | 'ai' | 'multiplayer';
   private difficulty: 'beginner' | 'intermediate' | 'expert';
   private callbacks: GameCallbacks = {};
-  private roomId: string | null = null;
   private ai: ChessAI;
 
   constructor() {
@@ -142,41 +149,8 @@ export class GameModeManager {
       }
       this.gameState = this.createInitialGameState();
 
-      if (mode === 'multiplayer') {
-        const roomId = Math.random().toString(36).substring(7);
-        const playerId = Math.random().toString(36).substring(7);
-        this.roomId = roomId;
-        
-        socketClient.setCallbacks({
-          onMove: (state: GameState) => {
-            this.gameState = state;
-            this.callbacks.onMove?.(this.gameState);
-          },
-          onGameEnd: (result: GameResult) => {
-            this.callbacks.onGameEnd?.(result);
-          },
-          onError: (error: Error) => {
-            this.callbacks.onError?.(error);
-          },
-          onGameStart: (data) => {
-            console.log('Game started:', data);
-            // Extract opponent info from the game start data
-            const opponentId = data.players.find(id => id !== playerId);
-            if (opponentId) {
-              this.callbacks.onGameStart?.({ id: opponentId, username: `Player ${opponentId.slice(0, 4)}` });
-            }
-          },
-          onPlayerJoined: (data) => {
-            console.log('Player joined:', data);
-          },
-          onPlayerLeft: (data) => {
-            console.log('Player left:', data);
-          }
-        }, roomId);
-
-        socketClient.setPlayerId(playerId);
-        socketClient.connect();
-      }
+      // Online multiplayer is handled by the Supabase-backed game service;
+      // there is no socket transport to initialise here anymore.
 
       this.callbacks.onMove?.(this.gameState);
     } catch (error) {
@@ -236,9 +210,7 @@ export class GameModeManager {
       // Notify callbacks
       this.callbacks.onMove?.(this.gameState);
 
-      if (this.mode === 'multiplayer' && this.roomId) {
-        socketClient.makeMove(this.roomId, move, this.gameState);
-      } else if (this.mode === 'ai' && this.gameState.currentTurn === 'black') {
+      if (this.mode === 'ai' && this.gameState.currentTurn === 'black') {
         // AI's turn
         setTimeout(() => this.makeAIMove(), 500);
       }
@@ -254,10 +226,10 @@ export class GameModeManager {
     try {
       // Set AI difficulty based on current difficulty setting
       this.ai.setDifficulty(this.difficulty);
-      
+
       // Get the best move from the AI
       const aiMove = await this.ai.getNextMove(this.gameState);
-      
+
       if (aiMove) {
         await this.makeMove(aiMove.from, aiMove.to);
       }
@@ -407,7 +379,7 @@ export class GameModeManager {
     if (!currentPiece || currentPiece.color !== this.gameState.currentTurn) return false;
 
     const validMoves = this.getValidMoves(from);
-    return validMoves.some(validMove => 
+    return validMoves.some(validMove =>
       validMove.layer === to.layer && validMove.x === to.x && validMove.y === to.y
     );
   }
@@ -416,19 +388,19 @@ export class GameModeManager {
     // Create a temporary copy of the game state
     const tempBoard = JSON.parse(JSON.stringify(this.gameState.board));
     const originalPos = piece.position;
-    
+
     // Make the move on the temporary board
     this.gameState.board[piece.position.layer][piece.position.y][piece.position.x] = null;
     piece.position = move;
     this.gameState.board[move.layer][move.y][move.x] = piece;
-    
+
     // Check if the king is in check
     const isInCheck = this.isKingInCheck(piece.color);
-    
+
     // Restore the original state
     this.gameState.board = tempBoard;
     piece.position = originalPos;
-    
+
     return isInCheck;
   }
 
@@ -454,7 +426,7 @@ export class GameModeManager {
         // Stalemate
         this.gameState.isStalemate = true;
         this.callbacks.onGameEnd?.({
-          winner: undefined,
+          winner: 'draw',
           reason: 'stalemate'
         });
       }
@@ -484,8 +456,6 @@ export class GameModeManager {
   }
 
   cleanup(): void {
-    if (this.mode === 'multiplayer') {
-      socketClient.disconnect();
-    }
+    // No transport to tear down: online games are managed server-side now.
   }
-} 
+}

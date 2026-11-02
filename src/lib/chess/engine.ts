@@ -9,6 +9,39 @@ import {
   GameStateData
 } from '@/types/index';
 
+/**
+ * Castling rights for both players. Mirrors the engine's private field.
+ */
+export interface CastlingRights {
+  whiteKingside: boolean;
+  whiteQueenside: boolean;
+  blackKingside: boolean;
+  blackQueenside: boolean;
+}
+
+/**
+ * A complete, JSON-serializable snapshot of a ChessEngine's state.
+ *
+ * Everything the engine keeps in private fields is captured here so a game
+ * can be persisted (e.g. in a database row) and later rehydrated with
+ * `ChessEngine.fromSnapshot()` and continued exactly where it left off.
+ * Produced by `ChessEngine.toSnapshot()`. Contains plain data only.
+ */
+export interface EngineSnapshot {
+  version: 1;
+  board: (ChessPiece | null)[][][];
+  currentPlayer: PieceColor;
+  moveHistory: Move[];
+  capturedPieces: ChessPiece[];
+  gameState: GameState;
+  enPassantTarget: Position | null;
+  castlingRights: CastlingRights;
+}
+
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export class ChessEngine {
   private board: (ChessPiece | null)[][][];
   private currentPlayer: 'white' | 'black';
@@ -42,8 +75,8 @@ export class ChessEngine {
   }
 
   private createEmptyBoard(): (ChessPiece | null)[][][] {
-    return Array(this.NUM_LAYERS).fill(null).map(() => 
-      Array(this.BOARD_SIZE).fill(null).map(() => 
+    return Array(this.NUM_LAYERS).fill(null).map(() =>
+      Array(this.BOARD_SIZE).fill(null).map(() =>
         Array(this.BOARD_SIZE).fill(null)
       )
     );
@@ -52,10 +85,10 @@ export class ChessEngine {
   private initializeBoard(): void {
     // Initialize bottom layer (0)
     this.initializeBottomLayer(this.board[0]);
-    
+
     // Initialize middle layer (1)
     this.initializeMiddleLayer(this.board[1]);
-    
+
     // Initialize top layer (2) - empty
     this.initializeTopLayer(this.board[2]);
   }
@@ -261,8 +294,8 @@ export class ChessEngine {
       ];
 
       for (const enPassantPos of enPassantPositions) {
-        if (this.isValidPosition(enPassantPos) && 
-            enPassantPos.x === this.enPassantTarget.x && 
+        if (this.isValidPosition(enPassantPos) &&
+            enPassantPos.x === this.enPassantTarget.x &&
             enPassantPos.y === this.enPassantTarget.y &&
             enPassantPos.layer === this.enPassantTarget.layer) {
           moves.push(enPassantPos);
@@ -276,7 +309,7 @@ export class ChessEngine {
   private getRookMoves(position: Position): Position[] {
     const piece = this.getPieceAt(position);
     if (!piece) return [];
-    
+
     const moves: Position[] = [];
     const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 
@@ -324,7 +357,7 @@ export class ChessEngine {
   private getKnightMoves(position: Position): Position[] {
     const piece = this.getPieceAt(position);
     if (!piece) return [];
-    
+
     const moves: Position[] = [];
     const knightMoves = [
       [-2, -1], [-2, 1], [-1, -2], [-1, 2],
@@ -367,7 +400,7 @@ export class ChessEngine {
   private getBishopMoves(position: Position): Position[] {
     const piece = this.getPieceAt(position);
     if (!piece) return [];
-    
+
     const moves: Position[] = [];
     const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 
@@ -415,7 +448,7 @@ export class ChessEngine {
   private getQueenMoves(position: Position): Position[] {
     const piece = this.getPieceAt(position);
     if (!piece) return [];
-    
+
     const moves: Position[] = [];
     const directions = [
       [-1, -1], [-1, 0], [-1, 1],
@@ -467,7 +500,7 @@ export class ChessEngine {
   private getKingMoves(position: Position): Position[] {
     const piece = this.getPieceAt(position);
     if (!piece) return [];
-    
+
     const moves: Position[] = [];
     const directions = [
       [-1, -1], [-1, 0], [-1, 1],
@@ -544,7 +577,7 @@ export class ChessEngine {
     const rookY = piece.color === 'white' ? 0 : 7;
     const rookPos = { x: rookX, y: rookY, layer: position.layer };
     const rook = this.getPieceAt(rookPos);
-    
+
     if (!rook || rook.type !== 'rook' || rook.hasMoved || rook.color !== piece.color) {
       return false;
     }
@@ -552,7 +585,7 @@ export class ChessEngine {
     // Check if squares between king and rook are empty
     const startX = side === 'kingside' ? 5 : 1;
     const endX = side === 'kingside' ? 7 : 3;
-    
+
     for (let x = startX; x <= endX; x++) {
       if (x === position.x) continue; // Skip king's position
       const pos = { x, y: position.y, layer: position.layer };
@@ -561,7 +594,7 @@ export class ChessEngine {
 
     // Check if king is in check or would pass through check
     if (this.isKingInCheck(piece.color)) return false;
-    
+
     const checkSquares = side === 'kingside' ? [5, 6] : [2, 3];
     for (const x of checkSquares) {
       if (x === position.x) continue;
@@ -592,7 +625,7 @@ export class ChessEngine {
     // Create a temporary board state
     const tempBoard = this.cloneBoard();
     const capturedPiece = tempBoard[to.layer][to.y][to.x];
-    
+
     // Make the move on the temporary board
     tempBoard[to.layer][to.y][to.x] = piece;
     tempBoard[from.layer][from.y][from.x] = null;
@@ -602,8 +635,8 @@ export class ChessEngine {
   }
 
   private cloneBoard(): (ChessPiece | null)[][][] {
-    return this.board.map(layer => 
-      layer.map(row => 
+    return this.board.map(layer =>
+      layer.map(row =>
         row.map(piece => piece ? { ...piece } : null)
       )
     );
@@ -616,7 +649,7 @@ export class ChessEngine {
   private isKingInCheckOnBoard(color: PieceColor, board: (ChessPiece | null)[][][]): boolean {
     // Find the king
     let kingPosition: Position | null = null;
-    
+
     for (let layer = 0; layer < 3; layer++) {
       for (let y = 0; y < 8; y++) {
         for (let x = 0; x < 8; x++) {
@@ -660,7 +693,7 @@ export class ChessEngine {
     // This is a simplified version - in a real implementation, you'd need to duplicate the move logic
     // For now, we'll return basic moves
     const moves: Position[] = [];
-    
+
     switch (piece.type) {
       case 'pawn':
         // Basic pawn moves
@@ -688,7 +721,7 @@ export class ChessEngine {
         break;
       // Add other piece types as needed
     }
-    
+
     return moves;
   }
 
@@ -703,7 +736,7 @@ export class ChessEngine {
     }
 
     const validMoves = this.getValidMoves(from);
-    const isValidMove = validMoves.some(move => 
+    const isValidMove = validMoves.some(move =>
       move.x === to.x && move.y === to.y && move.layer === to.layer
     );
 
@@ -725,8 +758,8 @@ export class ChessEngine {
     // Handle special moves
     if (piece.type === 'pawn') {
       // En passant
-      if (this.enPassantTarget && 
-          to.x === this.enPassantTarget.x && 
+      if (this.enPassantTarget &&
+          to.x === this.enPassantTarget.x &&
           to.y === this.enPassantTarget.y &&
           to.layer === this.enPassantTarget.layer) {
         move.isEnPassant = true;
@@ -776,7 +809,7 @@ export class ChessEngine {
       const rookFrom = { x: rookFromX, y: from.y, layer: from.layer };
       const rookTo = { x: rookToX, y: from.y, layer: from.layer };
       const rook = this.getPieceAt(rookFrom);
-      
+
       if (rook) {
         this.board[rookTo.layer][rookTo.y][rookTo.x] = rook;
         this.board[rookFrom.layer][rookFrom.y][rookFrom.x] = null;
@@ -863,7 +896,7 @@ export class ChessEngine {
       const rookFrom = { x: rookFromX, y: lastMove.from.y, layer: lastMove.from.layer };
       const rookTo = { x: rookToX, y: lastMove.from.y, layer: lastMove.from.layer };
       const rook = this.getPieceAt(rookFrom);
-      
+
       if (rook) {
         this.board[rookTo.layer][rookTo.y][rookTo.x] = rook;
         this.board[rookFrom.layer][rookFrom.y][rookFrom.x] = null;
@@ -961,7 +994,7 @@ export class ChessEngine {
 
   private isCheckmate(color: 'white' | 'black'): boolean {
     if (!this.isKingInCheck(color)) return false;
-    
+
     // Check if any move can get out of check
     for (let layer = 0; layer < 3; layer++) {
       for (let y = 0; y < 8; y++) {
@@ -985,6 +1018,51 @@ export class ChessEngine {
 
   public getBoard(): (ChessPiece | null)[][][] {
     return this.board;
+  }
+
+  /**
+   * Serialize the complete engine state into a plain, JSON-safe object.
+   * The result is a deep copy: mutating it does not affect this engine,
+   * and later moves on this engine do not mutate the snapshot.
+   */
+  public toSnapshot(): EngineSnapshot {
+    return {
+      version: 1,
+      board: deepClone(this.board),
+      currentPlayer: this.currentPlayer,
+      moveHistory: deepClone(this.moveHistory),
+      capturedPieces: deepClone(this.capturedPieces),
+      gameState: this.gameState,
+      enPassantTarget: this.enPassantTarget ? { ...this.enPassantTarget } : null,
+      castlingRights: { ...this.castlingRights }
+    };
+  }
+
+  /**
+   * Rebuild an engine from a snapshot produced by `toSnapshot()`
+   * (typically after a JSON round trip through a database).
+   * The snapshot is deep-copied, so the returned engine never aliases
+   * the caller's objects.
+   */
+  public static fromSnapshot(snapshot: EngineSnapshot): ChessEngine {
+    if (
+      !snapshot ||
+      snapshot.version !== 1 ||
+      !Array.isArray(snapshot.board) ||
+      snapshot.board.length !== 3
+    ) {
+      throw new Error('Invalid engine snapshot');
+    }
+
+    const engine = new ChessEngine();
+    engine.board = deepClone(snapshot.board);
+    engine.currentPlayer = snapshot.currentPlayer;
+    engine.moveHistory = deepClone(snapshot.moveHistory ?? []);
+    engine.capturedPieces = deepClone(snapshot.capturedPieces ?? []);
+    engine.gameState = snapshot.gameState;
+    engine.enPassantTarget = snapshot.enPassantTarget ? { ...snapshot.enPassantTarget } : null;
+    engine.castlingRights = { ...snapshot.castlingRights };
+    return engine;
   }
 
   public getPieceAt(position: Position): ChessPiece | null {

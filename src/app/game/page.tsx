@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChessGame from '@/components/ChessGame';
+import PlayFriendPanel from '@/components/PlayFriendPanel';
 
 const validModes = ['singleplayer', 'multiplayer', 'practice'];
 const validDifficulties = ['beginner', 'intermediate', 'expert', 'tutorial', 'puzzles', 'analysis'];
@@ -14,6 +15,10 @@ export default function GamePage() {
   const difficulty = searchParams.get('difficulty');
 
   useEffect(() => {
+    // Online multiplayer is link-based and needs no difficulty selection.
+    if (mode === 'multiplayer') {
+      return;
+    }
     // Validate mode and difficulty
     if (!mode || !validModes.includes(mode) ||
         !difficulty || !validDifficulties.includes(difficulty)) {
@@ -21,6 +26,19 @@ export default function GamePage() {
       return;
     }
   }, [mode, difficulty, router]);
+
+  // Multiplayer: create a shareable link or join by code. The actual game
+  // is played at /game/<code>.
+  if (mode === 'multiplayer') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white flex items-center justify-center px-4 py-16">
+        <div className="w-full max-w-xl text-center">
+          <h1 className="text-4xl font-bold mb-8">Multiplayer</h1>
+          <PlayFriendPanel />
+        </div>
+      </div>
+    );
+  }
 
   if (!mode || !difficulty) {
     return null;
@@ -40,11 +58,11 @@ export default function GamePage() {
     }
   }
 
-  // For singleplayer and multiplayer modes
+  // For singleplayer mode
   return (
-    <ChessGame 
-      gameMode={mode as 'singleplayer' | 'multiplayer'} 
-      difficulty={difficulty as 'beginner' | 'intermediate' | 'expert'} 
+    <ChessGame
+      gameMode={mode as 'singleplayer' | 'multiplayer'}
+      difficulty={difficulty as 'beginner' | 'intermediate' | 'expert'}
     />
   );
-} 
+}
